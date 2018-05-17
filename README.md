@@ -1,5 +1,5 @@
-# aldarons-kernel
-A kernel, written in Rust (Early stages).
+# Aldarons Kernel
+A unikernel, written in Rust (Early stages).
 
 ## Install In another OS
 Have an installer for Linux, Windows, Mac OS, that downloads a program onto your computer.
