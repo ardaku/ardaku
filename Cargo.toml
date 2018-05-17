@@ -1,0 +1,6 @@
+[package]
+name = "aldarons-kernel"
+version = "0.1.0"
+authors = ["Jeron A. Lau <jeron.lau@plopgrizzly.com>"]
+
+[dependencies]
