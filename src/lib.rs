@@ -1,8 +1,9 @@
-//! Aldaron's Kernel is a unikernel written in rust.
+//! Dive-Kernel is a unikernel written in rust.
 
-#![no_std]
+// TODO: enable for actually building a unikernel
+// #![no_std]
 
-type Void = u8;
+/*type Void = u8;
 
 mod data; // Data on the heap
 mod future; // A state machine future
@@ -12,4 +13,15 @@ pub use future::Future;
 pub use slice::Slice;
 
 // Drivers
-pub mod usb;
+pub mod usb;*/
+
+mod sr;
+mod dive;
+
+pub use sr::*;
+pub use dive::*;
+
+/// Entry point for the kernel.
+pub extern "C" fn dive_main() {
+    
+}
