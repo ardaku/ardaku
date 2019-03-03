@@ -1,4 +1,4 @@
-# Aldarons Kernel
+# Dive Kernel
 A unikernel, written in Rust (Early stages).
 
 ## Install In another OS
