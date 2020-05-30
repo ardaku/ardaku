@@ -26,9 +26,9 @@ const VT: u8 = b'\x0B';
 const FF: u8 = b'\x0C';
 // Carriage Return for Terminal Output '\r' (Program -> OS)
 const CR: u8 = b'\x0D';
-// UNIMPLEMENTED: Shift Out
+// Set Outer GUI - Menu (Program <-> OS), switches direction
 const SO: u8 = b'\x0E';
-// UNIMPLEMENTED: Shift In
+// Set Inner GUI - Page (Program <-> OS), switches direction
 const SI: u8 = b'\x0F';
 // Switch Input Device [Touchscreen, Keyboard, Game] (Program -> OS)
 const DLE: u8 = b'\x10';
@@ -44,11 +44,11 @@ const DC4: u8 = b'\x14';
 const NAK: u8 = b'\x15';
 // Save State To Drive (Program -> OS)
 const SYN: u8 = b'\x16';
-// UNIMPLEMENTED: End of trans. block
+// Sync Graphics - Redraw Frame (Program -> OS)
 const ETB: u8 = b'\x17';
-// UNIMPLEMENTED: Cancel
+// Share File (Program -> OS)
 const CAN: u8 = b'\x18';
-// UNIMPLEMENTED: End of medium
+// Set Graphics Matrix (Program -> OS)
 const EM: u8 = b'\x19';
 // Write to Graphic (Program -> OS)
 const SUB: u8 = b'\x1A';
@@ -60,10 +60,11 @@ const FS: u8 = b'\x1C';
 const GS: u8 = b'\x1D';
 // Speaker Output @Uint16 48,000 hz (Program -> OS)
 const RS: u8 = b'\x1E';
-// UNIMPLEMENTED: Unit Separator
+// Scale, Stretch & Render Bitmap
 const US: u8 = b'\x1F';
 
 /// Dive API Message
 pub enum Msg {
-    
+    /// Set Graphics Matrix (Program -> OS)
+    Matrix([f32; 16])
 }
