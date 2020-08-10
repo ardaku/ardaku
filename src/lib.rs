@@ -1,7 +1,15 @@
-//! Dive-Kernel is a unikernel written in rust.
+//! Dive-Kernel is a micro-unikernel written in rust.
+//!
+//! # Components
+//! - Emu(lator) ("Drivers" - emulate subsystems from devices on the target)
+//! - Sys(calls) (Some syscalls are implemented ontop of the emulator)
+//! - Syn(chronicity) (The concurrency model is implemented with sycalls)
 
-// TODO: enable for actually building a unikernel
-// #![no_std]
+// Components
+mod emu;
+mod sys;
+mod syn;
+
 
 /*type Void = u8;
 
