@@ -14,7 +14,7 @@ export start
 import kernel
 
 def start() {
-    kernel.write("Hello, world!")
+    kernel.say("Hello, world!")
 }
 ```
  - Start up the emulation, yote "run" button or:
