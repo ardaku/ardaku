@@ -51,34 +51,56 @@ use I::*;
 #[repr(u8)]
 #[derive(Copy, Clone)]
 pub(crate) enum Reg {
+    /// General purpose 0 (should use the most)
     EAX = 0b000,
+    /// General purpose 1
     ECX = 0b001,
+    /// General purpose 2
     EDX = 0b010,
+    /// General purpose 3
     EBX = 0b011,
     /// Not A general Purpose Register
     ESP = 0b100,
+    /// General purpose 4
     EBP = 0b101,
+    /// General purpose 5
     ESI = 0b110,
+    /// General purpose 6
     EDI = 0b111,
 }
 
 /// An assembly instruction (dst=0-7, src=0-7)
 #[allow(clippy::enum_variant_names)]
 pub(crate) enum I {
-    /// R[dst] +: R[src]
-    ADD { dst: u8, src: u8 },
-    /// R[dst] +: imm
-    ADDI { dst: u8, imm: i32 },
+    /// R[.0] : R[.1]
+    MOV(u8, u8),
+    /// R[.0] +: R[.1]
+    ADD(u8, u8),
+    /// R[.0] \: R[.1]
+    XOR(u8, u8),
+    /// R[.0] +: .1
+    ADDI(u8, i32),
 }
 
 impl I {
     /// Write self to machine code buffer.
     pub fn encode(&self, mc: &mut Vec<u8>) {
         match *self {
-            ADD { dst, src } => {
-                mc.push(0b00000001); // ADD Opcode
+            // Move Instruction
+            MOV { dst, src } => {
+                mc.push(0b10001011); // MOV(32) Opcode
                 mc.push((0b11 << 6) | (src << 3) | dst);
             }
+            // Arithmetic Instructions
+            ADD { dst, src } => {
+                mc.push(0b00000001); // ADD(32) Opcode
+                mc.push((0b11 << 6) | (src << 3) | dst);
+            }
+            XOR { dst, src } => {
+                mc.push(0b00110001); // XOR(32) Opcode
+                mc.push((0b11 << 6) | (src << 3) | dst);
+            }
+            // Immediate Instructions
             ADDI { dst, imm } => {
                 if let Ok(imm) = imm.try_into() {
                     let imm: i8 = imm;
@@ -86,6 +108,12 @@ impl I {
                     mc.push(0b10000011); // IMMEDIATE(8) Opcode
                     mc.push((0b00000 << 3) | dst); // "ADD"
                     mc.push(imm as u8);
+                } else if dst == 0 { // EAX
+                    // Can use accumulator shortenned instruction
+                    mc.push(0b00000101);
+                    for byte in imm.to_ne_bytes().iter().cloned() {
+                        mc.push(byte);
+                    }
                 } else {
                     // Full 32-bit immediate instruction
                     mc.push(0b10000001); // IMMEDIATE(32) Opcode
@@ -103,58 +131,69 @@ impl I {
 pub fn translate(with: riscv::I, mc: &mut Vec<u8>) {
     use riscv::I::*;
     match with {
-        LUI { d, imm } => I::,
-        AUIPC { d, imm } => I::,
-        JAL { d, imm } => I::,
-        JALR { d, s, imm } => I::,
-        BEQ { s1, s2, imm } => I::,
-        BNE { s1, s2, imm } => I::,
-        BLT { s1, s2, imm } => I::,
-        BGE { s1, s2, imm } => I::,
-        BLTU { s1, s2, imm } => I::,
-        BGEU { s1, s2, imm } => I::,
-        LB { d, s, imm } => I::,
-        LH { d, s, imm } => I::,
-        LW { d, s, imm } => I::,
-        LBU { d, s, imm } => I::,
-        LHU { d, s, imm } => I::,
-        ADDI { d, s, imm } => I::,
-        SLTI { d, s, imm } => I::,
-        SLTUI { d, s, imm } => I::,
-        XORI { d, s, imm } => I::,
-        ORI { d, s, imm } => I::,
-        ANDI { d, s, imm } => I::,
-        SLLI { d, s, imm } => I::,
-        SRLI { d, s, imm } => I::,
-        SRAI { d, s, imm } => I::,
-        SB { s1, s2, imm } => I::,
-        SH { s1, s2, imm } => I::,
-        SW { s1, s2, imm } => I::,
+        LUI { d, imm } => todo!(),
+        AUIPC { d, imm } => todo!(),
+        JAL { d, imm } => todo!(),
+        JALR { d, s, imm } => todo!(),
+        BEQ { s1, s2, imm } => todo!(),
+        BNE { s1, s2, imm } => todo!(),
+        BLT { s1, s2, imm } => todo!(),
+        BGE { s1, s2, imm } => todo!(),
+        BLTU { s1, s2, imm } => todo!(),
+        BGEU { s1, s2, imm } => todo!(),
+        LB { d, s, imm } => todo!(),
+        LH { d, s, imm } => todo!(),
+        LW { d, s, imm } => todo!(),
+        LBU { d, s, imm } => todo!(),
+        LHU { d, s, imm } => todo!(),
+        ADDI { d, s, imm } => {
+            match (d, s, imm) {
+                (ZERO, _, _) => { /* nop */ },
+                (d, ZERO, 0) => I::XOR(d, d).encode(mc),
+                (d, ZERO, s) => I::MOV(d, s).encode(mc),
+                (d, s, imm) if d == s => I::ADDI(d, imm).encode(mc),
+                (d, s, imm) => {
+                    I::MOV(d, s).encode(mc);
+                    I::ADDI(d, imm).encode(mc);
+                }
+            }
+        },
+        SLTI { d, s, imm } => todo!(),
+        SLTUI { d, s, imm } => todo!(),
+        XORI { d, s, imm } => todo!(),
+        ORI { d, s, imm } => todo!(),
+        ANDI { d, s, imm } => todo!(),
+        SLLI { d, s, imm } => todo!(),
+        SRLI { d, s, imm } => todo!(),
+        SRAI { d, s, imm } => todo!(),
+        SB { s1, s2, imm } => todo!(),
+        SH { s1, s2, imm } => todo!(),
+        SW { s1, s2, imm } => todo!(),
         ADD { d, s1, s2 } => {
             match (d, s1, s2) {
-                (ZERO, _s1, _s2) => { /* nop */ },
-                (_d, ZERO, ZERO) => I::XOR(d, d).encode(mc),
-                (_d, ZERO, _s2) => I::MOV(d, s2).encode(mc),
-                (_d, _s1, ZERO) => I::MOV(d, s1).encode(mc),
-                (_d, _s1, _s2) if d == s2 => I::ADD(d, s1).encode(mc),
-                (_d, _s1, _s2) if d == s1 => I::ADD(d, s2).encode(mc),
-                (_d, _s1, _s2) => {
+                (ZERO, _, _) => { /* nop */ },
+                (d, ZERO, ZERO) => I::XOR(d, d).encode(mc),
+                (d, ZERO, s2) => I::MOV(d, s2).encode(mc),
+                (d, s1, ZERO) => I::MOV(d, s1).encode(mc),
+                (d, s1, s2) if d == s2 => I::ADD(d, s1).encode(mc),
+                (d, s1, s2) if d == s1 => I::ADD(d, s2).encode(mc),
+                (d, s1, s2) => {
                     I::MOV(d, s1).encode(mc);
                     I::ADD(d, s2).encode(mc);
                 }
             }
         },
-        SUB { d, s1, s2 } => I::,
-        SLL { d, s1, s2 } => I::,
-        SLT { d, s1, s2 } => I::,
-        SLTU { d, s1, s2 } => I::,
-        XOR { d, s1, s2 } => I::,
-        SRL { d, s1, s2 } => I::,
-        SRA { d, s1, s2 } => I::,
-        OR { d, s1, s2 } => I::,
-        AND { d, s1, s2 } => I::,
-        ECALL {} => I::,
-        EBREAK {} => I::,
-        FENCE { imm } => I::,
+        SUB { d, s1, s2 } => todo!(),
+        SLL { d, s1, s2 } => todo!(),
+        SLT { d, s1, s2 } => todo!(),
+        SLTU { d, s1, s2 } => todo!(),
+        XOR { d, s1, s2 } => todo!(),
+        SRL { d, s1, s2 } => todo!(),
+        SRA { d, s1, s2 } => todo!(),
+        OR { d, s1, s2 } => todo!(),
+        AND { d, s1, s2 } => todo!(),
+        ECALL {} => todo!(),
+        EBREAK {} => todo!(),
+        FENCE { imm } => todo!(),
     }
 }
