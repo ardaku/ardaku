@@ -34,7 +34,7 @@
 //! add $x1, $x2, $zero
 //! # x86
 //! mov $x1, $x2
-//! 
+//!
 //! # riscv
 //! add $x1, $zero, $x2
 //! # x86
@@ -274,7 +274,11 @@ impl I {
 }
 
 /// Translate a RISC-V Instruction into X86 Machine Code.
-pub fn translate(with: asm_riscv::I, mc: &mut Vec<u8>, sysargs: &mut Pin<Box<[u32; 3]>>) {
+pub fn translate(
+    with: asm_riscv::I,
+    mc: &mut Vec<u8>,
+    sysargs: &mut Pin<Box<[u32; 3]>>,
+) {
     use asm_riscv::I::*;
     match with {
         LUI { d, im } => todo!(),
@@ -294,7 +298,7 @@ pub fn translate(with: asm_riscv::I, mc: &mut Vec<u8>, sysargs: &mut Pin<Box<[u3
         LHU { d, s, im } => todo!(),
         ADDI { d, s, im } => {
             match (d, s, im) {
-                (ZERO, _, _) => { /* nop */ },
+                (ZERO, _, _) => { /* nop */ }
                 (d, ZERO, 0) => I::XOR(d.into(), d.into()).encode(mc),
                 (d, ZERO, s) => I::MOVI(d.into(), s.into()).encode(mc),
                 (d, s, im) if d == s => I::ADDI(d.into(), im.into()).encode(mc),
@@ -303,12 +307,12 @@ pub fn translate(with: asm_riscv::I, mc: &mut Vec<u8>, sysargs: &mut Pin<Box<[u3
                     I::ADDI(d.into(), im.into()).encode(mc);
                 }
             }
-        },
+        }
         SLTI { d, s, im } => todo!(),
         SLTUI { d, s, im } => todo!(),
         XORI { d, s, im } => {
             match (d, s, im) {
-                (ZERO, _, _) => { /* nop */ },
+                (ZERO, _, _) => { /* nop */ }
                 (d, ZERO, 0) => I::XOR(d.into(), d.into()).encode(mc),
                 (d, ZERO, s) => I::MOVI(d.into(), s.into()).encode(mc),
                 (d, s, im) if d == s => I::XORI(d.into(), im.into()).encode(mc),
@@ -317,7 +321,7 @@ pub fn translate(with: asm_riscv::I, mc: &mut Vec<u8>, sysargs: &mut Pin<Box<[u3
                     I::XORI(d.into(), im.into()).encode(mc);
                 }
             }
-        },
+        }
         ORI { d, s, im } => todo!(),
         ANDI { d, s, im } => todo!(),
         SLLI { d, s, im } => todo!(),
@@ -328,21 +332,25 @@ pub fn translate(with: asm_riscv::I, mc: &mut Vec<u8>, sysargs: &mut Pin<Box<[u3
         SW { s1, s2, im } => todo!(),
         ADD { d, s1, s2 } => {
             match (d, s1, s2) {
-                (ZERO, _, _) => { /* nop */ },
+                (ZERO, _, _) => { /* nop */ }
                 (d, ZERO, ZERO) => I::XOR(d.into(), d.into()).encode(mc),
                 (d, ZERO, s2) => I::MOV(d.into(), s2.into()).encode(mc),
                 (d, s1, ZERO) => I::MOV(d.into(), s1.into()).encode(mc),
-                (d, s1, s2) if d == s2 => I::ADD(d.into(), s1.into()).encode(mc),
-                (d, s1, s2) if d == s1 => I::ADD(d.into(), s2.into()).encode(mc),
+                (d, s1, s2) if d == s2 => {
+                    I::ADD(d.into(), s1.into()).encode(mc)
+                }
+                (d, s1, s2) if d == s1 => {
+                    I::ADD(d.into(), s2.into()).encode(mc)
+                }
                 (d, s1, s2) => {
                     I::MOV(d.into(), s1.into()).encode(mc);
                     I::ADD(d.into(), s2.into()).encode(mc);
                 }
             }
-        },
+        }
         SUB { d, s1, s2 } => {
             match (d, s1, s2) {
-                (ZERO, _, _) => { /* nop */ },
+                (ZERO, _, _) => { /* nop */ }
                 (d, ZERO, ZERO) => I::XOR(d.into(), d.into()).encode(mc),
                 (d, ZERO, s2) if d == s2 => I::NEG(d.into()).encode(mc),
                 (d, ZERO, s2) => {
@@ -350,14 +358,18 @@ pub fn translate(with: asm_riscv::I, mc: &mut Vec<u8>, sysargs: &mut Pin<Box<[u3
                     I::NEG(d.into()).encode(mc);
                 }
                 (d, s1, ZERO) => I::MOV(d.into(), s1.into()).encode(mc),
-                (d, s1, s2) if d == s2 => I::SUB(d.into(), s1.into()).encode(mc),
-                (d, s1, s2) if d == s1 => I::SUB(d.into(), s2.into()).encode(mc),
+                (d, s1, s2) if d == s2 => {
+                    I::SUB(d.into(), s1.into()).encode(mc)
+                }
+                (d, s1, s2) if d == s1 => {
+                    I::SUB(d.into(), s2.into()).encode(mc)
+                }
                 (d, s1, s2) => {
                     I::MOV(d.into(), s1.into()).encode(mc);
                     I::SUB(d.into(), s2.into()).encode(mc);
                 }
             }
-        },
+        }
         SLL { d, s1, s2 } => todo!(),
         SLT { d, s1, s2 } => todo!(),
         SLTU { d, s1, s2 } => todo!(),
@@ -365,18 +377,22 @@ pub fn translate(with: asm_riscv::I, mc: &mut Vec<u8>, sysargs: &mut Pin<Box<[u3
         SRA { d, s1, s2 } => todo!(),
         XOR { d, s1, s2 } => {
             match (d, s1, s2) {
-                (ZERO, _, _) => { /* nop */ },
+                (ZERO, _, _) => { /* nop */ }
                 (d, ZERO, ZERO) => I::XOR(d.into(), d.into()).encode(mc),
                 (d, ZERO, s2) => I::MOV(d.into(), s2.into()).encode(mc),
                 (d, s1, ZERO) => I::MOV(d.into(), s1.into()).encode(mc),
-                (d, s1, s2) if d == s2 => I::XOR(d.into(), s1.into()).encode(mc),
-                (d, s1, s2) if d == s1 => I::XOR(d.into(), s2.into()).encode(mc),
+                (d, s1, s2) if d == s2 => {
+                    I::XOR(d.into(), s1.into()).encode(mc)
+                }
+                (d, s1, s2) if d == s1 => {
+                    I::XOR(d.into(), s2.into()).encode(mc)
+                }
                 (d, s1, s2) => {
                     I::MOV(d.into(), s1.into()).encode(mc);
                     I::XOR(d.into(), s2.into()).encode(mc);
                 }
             }
-        },
+        }
         OR { d, s1, s2 } => todo!(),
         AND { d, s1, s2 } => todo!(),
         ECALL {} => {
@@ -390,10 +406,10 @@ pub fn translate(with: asm_riscv::I, mc: &mut Vec<u8>, sysargs: &mut Pin<Box<[u3
             eprintln!("a2 {:X}", a2);
 
             todo!()
-        },
+        }
         EBREAK {} => {
             todo!() // Same as ECALL (but with return value 1 instead of 0)
-        },
+        }
         FENCE { im } => todo!(),
     }
 }

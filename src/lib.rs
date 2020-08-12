@@ -7,9 +7,8 @@
 
 // Components
 mod emu;
-mod sys;
 mod syn;
-
+mod sys;
 
 /*type Void = u8;
 

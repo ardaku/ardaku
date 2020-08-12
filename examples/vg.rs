@@ -1,9 +1,7 @@
 use dive_kernel;
 
 // Initialize the program
-fn init() {
-    
-}
+fn init() {}
 
 // Start up the kernel.
 fn main() {
