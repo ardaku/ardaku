@@ -22,14 +22,3 @@ pub use slice::Slice;
 
 // Drivers
 pub mod usb;*/
-
-mod sr;
-mod dive;
-
-pub use sr::*;
-pub use dive::*;
-
-/// Entry point for the kernel.
-pub extern "C" fn dive_main() {
-    
-}

@@ -7,3 +7,7 @@ edition = "2018"
 [dependencies.cala]
 version = "0.8"
 features = ["draw", "pixels", "journal"]
+
+[dependencies.asm_riscv]
+version = "0.1"
+path = "../asm_riscv"
