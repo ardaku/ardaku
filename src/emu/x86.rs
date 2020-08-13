@@ -92,7 +92,7 @@ use I::*;
 /// An X86 Register
 #[repr(u8)]
 #[derive(Copy, Clone, PartialEq, Debug)]
-pub(crate) enum Reg {
+pub enum Reg {
     /// Data Accumulator - Arithmetic/Logic / General purpose 0 (should use the most)
     /// Caller Saved (Push onto stack before function call)
     /// Return value.
@@ -162,7 +162,7 @@ impl From<asm_riscv::Reg> for Reg {
 
 /// An assembly instruction (dst=0-7, src=0-7)
 #[allow(clippy::enum_variant_names)]
-pub(crate) enum I {
+pub enum I {
     /// R[.0]: R[.1]
     MOV(Reg, Reg),
     /// R[.0] +: R[.1]
@@ -171,6 +171,12 @@ pub(crate) enum I {
     SUB(Reg, Reg),
     /// R[.0] ^^: R[.1]
     XOR(Reg, Reg),
+    /// R[.0] &: R[.1]
+    AND(Reg, Reg),
+    /// R[.0] |: R[.1]
+    OR(Reg, Reg),
+    /// EFLAGS <= R[.0] <, =, > R[.1]
+    CMP(Reg, Reg),
     /// R[.0]: -.0
     NEG(Reg),
     /// R[.0]: ~.0
@@ -181,6 +187,42 @@ pub(crate) enum I {
     ADDI(Reg, i32),
     /// R[.0] ^^: .1
     XORI(Reg, i32),
+    /// R[.0] &: .1
+    ANDI(Reg, i32),
+    /// R[.1] &: .2
+    ORI(Reg, i32),
+    /// EFLAGS <= R[.0] <(), =(0), >() R[.1]
+    CMPI(Reg, i32),
+    /// JUMP IF EFLAGS = 0
+    JE(i16),
+    /// JUMP IF EFLAGS != 0
+    JNE(i16),
+    /// JUMP IF EFLAGS = <
+    JL(i16),
+    /// JUMP IF EFLAGS = >
+    JG(i16),
+    /// JUMP IF EFLAGS = ≤
+    JLE(i16),
+    /// JUMP IF EFLAGS = ≥
+    JGE(i16),
+    /// JUMP IF EFLAGS = < (UNSIGNED)
+    JB(i16),
+    /// JUMP IF EFLAGS = > (UNSIGNED)
+    JA(i16),
+    /// JUMP IF EFLAGS = ≤ (UNSIGNED)
+    JBE(i16),
+    /// JUMP IF EFLAGS = ≥ (UNSIGNED)
+    JAE(i16),
+    /// JUMP IMMEDIATE UNCONDITIONAL
+    JMP(i16),
+    /// JUMP MEMORY UNCONDITIONAL: PC: M[R[.0]]
+    JMPM(Reg),
+    /// Stack.Push(PC); PC +: .0;
+    CALL(i16),
+    /// Stack.Push(R[.0])
+    PUSH(Reg),
+    /// R[.0]: Stack.Pop();
+    POP(Reg),
 }
 
 impl I {
@@ -202,7 +244,19 @@ impl I {
                 mc.push((0b11 << 6) | ((src as u8) << 3) | dst as u8);
             }
             XOR(dst, src) => {
-                mc.push(0b00110001); // XOR Registers (32) Opcode
+                mc.push(0b00110011); // XOR Registers (32) Opcode
+                mc.push((0b11 << 6) | ((src as u8) << 3) | dst as u8);
+            }
+            AND(dst, src) => {
+                mc.push(0b00100011); // AND Registers (32) Opcode
+                mc.push((0b11 << 6) | ((src as u8) << 3) | dst as u8);
+            },
+            OR(dst, src) => {
+                mc.push(0b00001011); // OR Registers (32) Opcode
+                mc.push((0b11 << 6) | ((src as u8) << 3) | dst as u8);
+            },
+            CMP(dst, src) => {
+                mc.push(0b00111011); // CMP Registers (32) Opcode
                 mc.push((0b11 << 6) | ((src as u8) << 3) | dst as u8);
             }
             // Arithmetic 1-Operand Instructions
@@ -269,6 +323,234 @@ impl I {
                     }
                 }
             }
+            ANDI(dst, im) => {
+                if let Ok(im) = im.try_into() {
+                    let im: i8 = im;
+                    // Can use reduced instruction size
+                    mc.push(0b10000011); // IMMEDIATE(8) Opcode
+                    mc.push((0b00100 << 3) | dst as u8); // "AND"
+                    mc.push(im as u8);
+                } else {
+                    // Full 32-bit immediate instruction
+                    mc.push(0b10000001); // IMMEDIATE(32) Opcode
+                    mc.push((0b00100 << 3) | dst as u8); // "AND"
+                    for byte in im.to_ne_bytes().iter().cloned() {
+                        mc.push(byte);
+                    }
+                }
+            }
+            ORI(dst, im) => {
+                if let Ok(im) = im.try_into() {
+                    let im: i8 = im;
+                    // Can use reduced instruction size
+                    mc.push(0b10000011); // IMMEDIATE(8) Opcode
+                    mc.push((0b00001 << 3) | dst as u8); // "OR"
+                    mc.push(im as u8);
+                } else {
+                    // Full 32-bit immediate instruction
+                    mc.push(0b10000001); // IMMEDIATE(32) Opcode
+                    mc.push((0b00001 << 3) | dst as u8); // "OR"
+                    for byte in im.to_ne_bytes().iter().cloned() {
+                        mc.push(byte);
+                    }
+                }
+            }
+            CMPI(dst, im) => {
+                if let Ok(im) = im.try_into() {
+                    let im: i8 = im;
+                    // Can use reduced instruction size
+                    mc.push(0b10000011); // IMMEDIATE(8) Opcode
+                    mc.push((0b00111 << 3) | dst as u8); // "CMP"
+                    mc.push(im as u8);
+                } else {
+                    // Full 32-bit immediate instruction
+                    mc.push(0b10000001); // IMMEDIATE(32) Opcode
+                    mc.push((0b00111 << 3) | dst as u8); // "CMP"
+                    for byte in im.to_ne_bytes().iter().cloned() {
+                        mc.push(byte);
+                    }
+                }
+            }
+            JE(im) => {
+                if let Ok(im) = im.try_into() {
+                    let im: i8 = im;
+                    // Can use reduced instruction size
+                    mc.push(0b01110100); // IF ZERO JUMP SHORT
+                    mc.push(im as u8);
+                } else {
+                    // Full 16-bit near immediate instruction
+                    let im = im.to_ne_bytes();
+                    mc.push(0b00001111); // JUMP NEAR
+                    mc.push(0b10000100); // IF EQUAL (0)
+                    mc.push(im[0]);
+                    mc.push(im[1]);
+                }
+            }
+            JNE(im) => {
+                if let Ok(im) = im.try_into() {
+                    let im: i8 = im;
+                    // Can use reduced instruction size
+                    mc.push(0b01110101); // IF NOT ZERO JUMP SHORT
+                    mc.push(im as u8);
+                } else {
+                    // Full 16-bit near immediate instruction
+                    let im = im.to_ne_bytes();
+                    mc.push(0b00001111); // JUMP NEAR
+                    mc.push(0b10000101); // IF NOT EQUAL (0)
+                    mc.push(im[0]);
+                    mc.push(im[1]);
+                }
+            }
+            JL(im) => {
+                if let Ok(im) = im.try_into() {
+                    let im: i8 = im;
+                    // Can use reduced instruction size
+                    mc.push(0b01111100); // IF LESS JUMP SHORT
+                    mc.push(im as u8);
+                } else {
+                    // Full 16-bit near immediate instruction
+                    let im = im.to_ne_bytes();
+                    mc.push(0b00001111); // JUMP NEAR
+                    mc.push(0b10001100); // IF LESS
+                    mc.push(im[0]);
+                    mc.push(im[1]);
+                }
+            }
+            JG(im) => {
+                if let Ok(im) = im.try_into() {
+                    let im: i8 = im;
+                    // Can use reduced instruction size
+                    mc.push(0b01111111); // IF GREATER JUMP SHORT
+                    mc.push(im as u8);
+                } else {
+                    // Full 16-bit near immediate instruction
+                    let im = im.to_ne_bytes();
+                    mc.push(0b00001111); // JUMP NEAR
+                    mc.push(0b10001111); // IF GREATER
+                    mc.push(im[0]);
+                    mc.push(im[1]);
+                }
+            }
+            JLE(im) => {
+                if let Ok(im) = im.try_into() {
+                    let im: i8 = im;
+                    // Can use reduced instruction size
+                    mc.push(0b01111110); // IF LESS OR EQUAL JUMP SHORT
+                    mc.push(im as u8);
+                } else {
+                    // Full 16-bit near immediate instruction
+                    let im = im.to_ne_bytes();
+                    mc.push(0b00001111); // JUMP NEAR
+                    mc.push(0b10001110); // IF GREATER OR EQUAL
+                    mc.push(im[0]);
+                    mc.push(im[1]);
+                }
+            }
+            JGE(im) => {
+                if let Ok(im) = im.try_into() {
+                    let im: i8 = im;
+                    // Can use reduced instruction size
+                    mc.push(0b01111101); // IF GREATER OR EQUAL JUMP SHORT
+                    mc.push(im as u8);
+                } else {
+                    // Full 16-bit near immediate instruction
+                    let im = im.to_ne_bytes();
+                    mc.push(0b00001111); // JUMP NEAR
+                    mc.push(0b10001101); // IF GREATER OR EQUAL
+                    mc.push(im[0]);
+                    mc.push(im[1]);
+                }
+            }
+            JB(im) => {
+                if let Ok(im) = im.try_into() {
+                    let im: i8 = im;
+                    // Can use reduced instruction size
+                    mc.push(0b01110010); // IF BELOW JUMP SHORT
+                    mc.push(im as u8);
+                } else {
+                    // Full 16-bit near immediate instruction
+                    let im = im.to_ne_bytes();
+                    mc.push(0b00001111); // JUMP NEAR
+                    mc.push(0b10000010); // IF BELOW
+                    mc.push(im[0]);
+                    mc.push(im[1]);
+                }
+            }
+            JA(im) => {
+                if let Ok(im) = im.try_into() {
+                    let im: i8 = im;
+                    // Can use reduced instruction size
+                    mc.push(0b01110111); // IF ABOVE JUMP SHORT
+                    mc.push(im as u8);
+                } else {
+                    // Full 16-bit near immediate instruction
+                    let im = im.to_ne_bytes();
+                    mc.push(0b00001111); // JUMP NEAR
+                    mc.push(0b10000111); // IF ABOVE
+                    mc.push(im[0]);
+                    mc.push(im[1]);
+                }
+            }
+            JBE(im) => {
+                if let Ok(im) = im.try_into() {
+                    let im: i8 = im;
+                    // Can use reduced instruction size
+                    mc.push(0b01110110); // IF BELOW OR EQUAL JUMP SHORT
+                    mc.push(im as u8);
+                } else {
+                    // Full 16-bit near immediate instruction
+                    let im = im.to_ne_bytes();
+                    mc.push(0b00001111); // JUMP NEAR
+                    mc.push(0b10000110); // IF BELOW OR EQUAL
+                    mc.push(im[0]);
+                    mc.push(im[1]);
+                }
+            }
+            JAE(im) => {
+                if let Ok(im) = im.try_into() {
+                    let im: i8 = im;
+                    // Can use reduced instruction size
+                    mc.push(0b01110011); // IF ABOVE OR EQUAL JUMP SHORT
+                    mc.push(im as u8);
+                } else {
+                    // Full 16-bit near immediate instruction
+                    let im = im.to_ne_bytes();
+                    mc.push(0b00001111); // JUMP NEAR
+                    mc.push(0b10000011); // IF ABOVE OR EQUAL
+                    mc.push(im[0]);
+                    mc.push(im[1]);
+                }
+            }
+            JMP(im) => {
+                if let Ok(im) = im.try_into() {
+                    let im: i8 = im;
+                    // Can use reduced instruction size
+                    mc.push(0b11101011); // UNCONDITIONAL JUMP SHORT
+                    mc.push(im as u8);
+                } else {
+                    // Full 16-bit near immediate instruction
+                    let im = im.to_ne_bytes();
+                    mc.push(0b11101001); // JUMP NEAR UNCONDITIONAL
+                    mc.push(im[0]);
+                    mc.push(im[1]);
+                }
+            }
+            JMPM(src) => {
+                mc.push(0b11111111); // Unary Register (32) Opcode
+                mc.push((0b00101 << 3) | src as u8); // NOT
+            }
+            CALL(im) => {
+                let im = im.to_ne_bytes();
+                mc.push(0b11101000); // Call near relative Opcode
+                mc.push(im[0]);
+                mc.push(im[1]);
+            }
+            PUSH(dst) => {
+                mc.push(0b01010000 + dst as u8); // Push register opcodes
+            }
+            POP(dst) => {
+                mc.push(0b01011000 + dst as u8); // Pop register opcodes
+            }
         }
     }
 }
@@ -281,16 +563,162 @@ pub fn translate(
 ) {
     use asm_riscv::I::*;
     match with {
-        LUI { d, im } => todo!(),
-        AUIPC { d, im } => todo!(),
-        JAL { d, im } => todo!(),
-        JALR { d, s, im } => todo!(),
-        BEQ { s1, s2, im } => todo!(),
-        BNE { s1, s2, im } => todo!(),
-        BLT { s1, s2, im } => todo!(),
-        BGE { s1, s2, im } => todo!(),
-        BLTU { s1, s2, im } => todo!(),
-        BGEU { s1, s2, im } => todo!(),
+        LUI { d, im } => {
+            match (d, im) {
+                (ZERO, _) => { /* nop */ },
+                (d, im) => I::MOVI(d.into(), im << 12).encode(mc),
+            }
+        },
+        AUIPC { d, im } => {
+            match (d, im) {
+                (ZERO, _) => { /* nop */ }
+                (d, im) => {
+                    // Write current PC into d
+                    I::CALL(0).encode(mc);
+                    I::POP(d.into()).encode(mc);
+                    // Add upper immediate to d
+                    I::ADDI(d.into(), im << 12).encode(mc);
+                }
+            }
+        },
+        JAL { d, im } => {
+            match (d, im) {
+                (ZERO, im) => I::JMPF(im).encode(mc),
+                (RA, im) => I::CALL(im).encode(mc),
+                (d, im) => {
+                    I::CALL(im).encode(mc);
+                    I::POP(d.into()).encode(mc);
+                    I::PUSH(d.into()).encode(mc);
+                }
+            }
+        },
+        JALR { d, s, im } => {
+            match (d, s, im) {
+                (ZERO, ZERO, im) => I::JMPA(im).encode(mc),
+                (d, ZERO, im) => {
+                    I::JMPA(im).encode(mc);
+                    I::POP(d.into()).encode(mc);
+                }
+                (ZERO, s, im) => {} // I::JMP(s, im).encode(mc),
+                (RA, im) => I::CALL(im).encode(mc),
+                (d, im) => {
+                    I::CALL(im).encode(mc);
+                    I::POP(d.into()).encode(mc);
+                    I::PUSH(d.into()).encode(mc);
+                }
+            }
+        }
+        BEQ { s1, s2, im } => {
+            match (s1, s2, im) {
+                (ZERO, ZERO, im) => I::JMP(im).encode(mc),
+                (ZERO, s2, im) => {
+                    I::CMPI(s2.into(), 0).encode(mc);
+                    I::JE(im).encode(mc);
+                },
+                (s1, ZERO, im) => {
+                    I::CMPI(s1.into(), 0).encode(mc);
+                    I::JE(im).encode(mc);
+                },
+                (s1, s2, im) if s1 == s2 => {
+                    I::JMP(im).encode(mc);
+                },
+                (s1, s2, im) => {
+                    I::CMP(s1.into(), s2.into()).encode(mc);
+                    I::JE(im).encode(mc);
+                },
+            }
+        },
+        BNE { s1, s2, im } => {
+            match (s1, s2, im) {
+                (s1, s2, im) if s1 == s2 => { /* nop */ },
+                (ZERO, s2, im) => {
+                    I::CMPI(s2.into(), 0).encode(mc);
+                    I::JNE(im).encode(mc);
+                },
+                (s1, ZERO, im) => {
+                    I::CMPI(s1.into(), 0).encode(mc);
+                    I::JNE(im).encode(mc);
+                },
+                (s1, s2, im) => {
+                    I::CMP(s1.into(), s2.into()).encode(mc);
+                    I::JNE(im).encode(mc);
+                },
+            }
+        },
+        BLT { s1, s2, im } => {
+            match (s1, s2, im) {
+                (s1, s2, im) if s1 == s2 => { /* nop */ },
+                (ZERO, s2, im) => {
+                    I::CMPI(s2.into(), 0).encode(mc);
+                    I::JL(im).encode(mc);
+                },
+                (s1, ZERO, im) => {
+                    I::CMPI(s1.into(), 0).encode(mc);
+                    I::JG(im).encode(mc);
+                },
+                (s1, s2, im) => {
+                    I::CMP(s1.into(), s2.into()).encode(mc);
+                    I::JL(im).encode(mc);
+                },
+            }
+        },
+        BGE { s1, s2, im } => {
+            match (s1, s2, im) {
+                (ZERO, ZERO, im) => I::JMP(im).encode(mc),
+                (ZERO, s2, im) => {
+                    I::CMPI(s2.into(), 0).encode(mc);
+                    I::JGE(im).encode(mc);
+                },
+                (s1, ZERO, im) => {
+                    I::CMPI(s1.into(), 0).encode(mc);
+                    I::JLE(im).encode(mc);
+                },
+                (s1, s2, im) if s1 == s2 => {
+                    I::JMP(im).encode(mc);
+                },
+                (s1, s2, im) => {
+                    I::CMP(s1.into(), s2.into()).encode(mc);
+                    I::JGE(im).encode(mc);
+                },
+            }
+        },
+        BLTU { s1, s2, im } => {
+            match (s1, s2, im) {
+                (s1, s2, im) if s1 == s2 => { /* nop */ },
+                (ZERO, s2, im) => {
+                    I::CMPI(s2.into(), 0).encode(mc);
+                    I::JB(im).encode(mc);
+                },
+                (s1, ZERO, im) => {
+                    I::CMPI(s1.into(), 0).encode(mc);
+                    I::JA(im).encode(mc);
+                },
+                (s1, s2, im) => {
+                    I::CMP(s1.into(), s2.into()).encode(mc);
+                    I::JB(im).encode(mc);
+                },
+            }
+        },
+        BGEU { s1, s2, im } => {
+            match (s1, s2, im) {
+                (ZERO, ZERO, im) => I::JMP(im).encode(mc),
+                (ZERO, s2, im) => {
+                    I::CMPI(s2.into(), 0).encode(mc);
+                    I::JAE(im).encode(mc);
+                },
+                (s1, ZERO, im) => {
+                    I::CMPI(s1.into(), 0).encode(mc);
+                    I::JBE(im).encode(mc);
+                },
+                (s1, s2, im) if s1 == s2 => {
+                    I::JMP(im).encode(mc);
+                },
+                (s1, s2, im) => {
+                    I::CMP(s1.into(), s2.into()).encode(mc);
+                    I::JAE(im).encode(mc);
+                },
+            }
+        },
         LB { d, s, im } => todo!(),
         LH { d, s, im } => todo!(),
         LW { d, s, im } => todo!(),
@@ -322,8 +750,30 @@ pub fn translate(
                 }
             }
         }
-        ORI { d, s, im } => todo!(),
-        ANDI { d, s, im } => todo!(),
+        ORI { d, s, im } => {
+            match (d, s, im) {
+                (ZERO, _, _) => { /* nop */ }
+                (d, ZERO, 0) => I::XOR(d.into(), d.into()).encode(mc),
+                (d, ZERO, s) => I::MOVI(d.into(), s.into()).encode(mc),
+                (d, s, im) if d == s => I::ORI(d.into(), im.into()).encode(mc),
+                (d, s, im) => {
+                    I::MOV(d.into(), s.into()).encode(mc);
+                    I::ORI(d.into(), im.into()).encode(mc);
+                }
+            }
+        },
+        ANDI { d, s, im } => {
+            match (d, s, im) {
+                (ZERO, _, _) => { /* nop */ }
+                (d, ZERO, _) => I::XOR(d.into(), d.into()).encode(mc),
+                (d, _, 0) => I::XOR(d.into(), d.into()).encode(mc),
+                (d, s, im) if d == s => I::ANDI(d.into(), im.into()).encode(mc),
+                (d, s, im) => {
+                    I::MOV(d.into(), s.into()).encode(mc);
+                    I::ANDI(d.into(), im.into()).encode(mc);
+                }
+            }
+        },
         SLLI { d, s, im } => todo!(),
         SRLI { d, s, im } => todo!(),
         SRAI { d, s, im } => todo!(),
@@ -393,8 +843,41 @@ pub fn translate(
                 }
             }
         }
-        OR { d, s1, s2 } => todo!(),
-        AND { d, s1, s2 } => todo!(),
+        OR { d, s1, s2 } => {
+            match (d, s1, s2) {
+                (ZERO, _, _) => { /* nop */ }
+                (d, ZERO, ZERO) => I::XOR(d.into(), d.into()).encode(mc),
+                (d, ZERO, s2) => I::MOV(d.into(), s2.into()).encode(mc),
+                (d, s1, ZERO) => I::MOV(d.into(), s1.into()).encode(mc),
+                (d, s1, s2) if d == s2 => {
+                    I::OR(d.into(), s1.into()).encode(mc)
+                }
+                (d, s1, s2) if d == s1 => {
+                    I::OR(d.into(), s2.into()).encode(mc)
+                }
+                (d, s1, s2) => {
+                    I::MOV(d.into(), s1.into()).encode(mc);
+                    I::OR(d.into(), s2.into()).encode(mc);
+                }
+            }
+        },
+        AND { d, s1, s2 } => {
+            match (d, s1, s2) {
+                (ZERO, _, _) => { /* nop */ }
+                (d, ZERO, _) => I::XOR(d.into(), d.into()).encode(mc),
+                (d, _, ZERO) => I::XOR(d.into(), d.into()).encode(mc),
+                (d, s1, s2) if d == s2 => {
+                    I::AND(d.into(), s1.into()).encode(mc)
+                }
+                (d, s1, s2) if d == s1 => {
+                    I::AND(d.into(), s2.into()).encode(mc)
+                }
+                (d, s1, s2) => {
+                    I::MOV(d.into(), s1.into()).encode(mc);
+                    I::AND(d.into(), s2.into()).encode(mc);
+                }
+            }
+        },
         ECALL {} => {
             // Copy syscall argument registers into kernel memory.
             let a0 = sysargs[0..].as_mut_ptr() as usize; // EAX
