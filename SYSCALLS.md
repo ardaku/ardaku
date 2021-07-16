@@ -11,8 +11,9 @@ async-by-default in mind.
    - [`fn listen()`](#fn-listen)
    - [`fn wait()`](#fn-wait)
  - Time
-   - [`fn timer()`](#fn-timer)
    - [`fn now()`](#fn-now)
+   - [`fn timer()`](#fn-timer)
+
 
 ## General (Async Fundamentals)
 
@@ -23,7 +24,9 @@ async-by-default in mind.
 ))
 ```
 
-Discard a `Future` when it's no longer needed.
+Discard a `Future` when it's no longer needed.  If provided `Future` is invalid,
+Ardaku will abort the application - so it's important to verify your program's
+correctness when using this syscall in order to avoid crashing.
 
 ### `fn listen()`
 ```wat
@@ -57,6 +60,21 @@ crashing.
 
 ## Time
 
+### `fn now()`
+```wat
+(import "ardaku" "now" (func $datetime
+    (result i64)
+))
+```
+
+Get the current date and time.  Never fails.  Returns `Date` structure:
+ - `year: s16` (-32768 to 32767)
+ - `month: u8` (1 to 12)
+ - `day: u8` (1 to 31)
+ - `hour: u8` (0 to 23)
+ - `minute: u8` (0 to 60)
+ - `millis: u16` (0 to 60_000 - usually, may go higher for time leaps)
+
 ### `fn timer()`
 ```wat
 (import "ardaku" "timer" (func $timer
@@ -66,22 +84,8 @@ crashing.
 ))
 ```
 
-Returns a new timer `Future` (`Timer`).  The future outputs the number of times
+Create a new timer `Future` (`Timer`).  The future outputs the number of times
 the timer went off since the previous call to `wait()` that polled this future.
 Duration is 64-bit in nanoseconds (meaning over 580 year timers are supported,
-as 10-second timers would not be possible with 32-bit duration).
-
-### `fn now()`
-```wat
-(import "ardaku" "now" (func $datetime
-    (result i64)
-))
-```
-
-Returns `Date` structure:
- - `year: s16` (-32768 to 32767)
- - `month: u8` (1 to 12)
- - `day: u8` (1 to 31)
- - `hour: u8` (0 to 23)
- - `minute: u8` (0 to 60)
- - `millis: u16` (0 to 60_000 - usually, may go higher for time leaps)
+as 10-second timers would not be possible with 32-bit duration).  This function
+returns `Opt[Timer]`, and only returns `None` (`0`) if out of memory.
