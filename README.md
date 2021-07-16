@@ -1,6 +1,8 @@
 # Ardaku
 Ardaku is a general-purpose unikernel operating system running Wasmer to execute WebAssembly applications.
 
+ - [Syscalls](SYSCALLS.md)
+
 ## Ideas
  - The operating system should be able to run as an application within another
    operating system (avoiding the need for VMs)
@@ -13,6 +15,3 @@ Ardaku is a general-purpose unikernel operating system running Wasmer to execute
    difficult to make programming errors, while also being powerful and fast
  - Adding support for new platforms should be as easy as implementing a trait of
    all the syscalls.
-
-## Syscalls
- - 
