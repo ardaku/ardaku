@@ -1,5 +1,6 @@
 # Ardaku
-Ardaku is a general-purpose unikernel operating system running Wasmer to execute WebAssembly applications.
+Ardaku is a general-purpose unikernel operating system running Wasmer to execute
+WebAssembly applications.
 
  - [Syscalls](SYSCALLS.md)
 
