@@ -245,12 +245,13 @@ ready when the synchronization is complete.
 ### `fn rand()`
 ```wat
 (import "ardaku" "rand" (func $rand
-    (param $user_data i32)
+    (param $output_data i32)
+    (param $output_size i32)
     (result i32)
 ))
 ```
 
-Generate a cryptographically secure random 64-bit pattern.  Returns a `Future`,
+Generate cryptographically secure random byte patterns.  Returns a `Future`,
 that becomes ready once the random number generation is complete.
 
 ---
