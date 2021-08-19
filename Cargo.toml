@@ -2,8 +2,11 @@
 name = "ardaku"
 version = "0.0.1"
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "WASM Environment / Unikernel OS"
+license = "BSL-1.0"
+documentation = "https://docs.rs/ardaku"
+homepage = "https://ardaku.org"
+repository = "https://github.com/ardaku/ardaku"
 
 [dependencies.wasmer]
 version = "2.0"
