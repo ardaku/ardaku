@@ -17,7 +17,8 @@ async fn run() {
 }
 
 fn main() {
-    let binary = include_bytes!("../example.wasm");
+    let app_path = std::env::args().skip(1).next().expect("Provide wasm file!");
+    let binary = std::fs::read(app_path).expect("Couldn't find file!");
 
     let store = Store::new(&Universal::new(Cranelift::new()).engine());
     let module = Module::from_binary(&store, &binary[..]).unwrap();

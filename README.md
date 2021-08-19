@@ -4,6 +4,21 @@ WebAssembly applications.
 
  - [Syscalls](SYSCALLS.md)
 
+## Getting Started
+To boot up Ardaku, you will need a startup application.  The file *example.wat*
+is provided in the root folder.  To compile it, you will need to install wabt.
+Once you do, run:
+
+```bash
+wat2wasm example.wat
+```
+
+This will create an *example.wasm* file.  You can now run it locally with:
+
+```bash
+cargo run --release example.wasm
+```
+
 ## Ideas
  - The operating system should be able to run as an application within another
    operating system (avoiding the need for VMs)
