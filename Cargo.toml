@@ -7,4 +7,5 @@ edition = "2018"
 
 [dependencies.wasmer]
 version = "2.0"
-# default-features = false
+default-features = false
+features = ["universal", "cranelift"]
