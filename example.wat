@@ -6,7 +6,7 @@
     ))
 
     ;; Export a single page memory of 64KB.
-    (memory $0 (export "shared") 1)
+    (memory $0 (export "pages") 1)
 
     ;; Define constants
     (data (i32.const 0) "Hello World!")

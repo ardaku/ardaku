@@ -9,3 +9,12 @@ edition = "2018"
 version = "2.0"
 default-features = false
 features = ["universal", "cranelift"]
+
+[dependencies.flume]
+version = "0.10"
+
+[dependencies.pasts]
+version = "0.8"
+
+[dependencies.devout]
+version = "0.2"
