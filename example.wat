@@ -1,10 +1,7 @@
 (module
-    (import "ardaku" "wait" (func $wait
-        (param $listener i32)
-        (param $futures_size i32)
-        (param $futures_data i32)
-        (result i32)
-        (result i32)
+    (import "ardaku" "log" (func $log
+        (param $text_data i32)
+        (param $text_size i32)
     ))
  
     (type $t0 (func (param i32) (result i32)))

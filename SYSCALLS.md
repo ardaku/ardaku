@@ -43,12 +43,11 @@ filesystem.
    - [`fn connect()`](#fn-socket) Open socket for communication (bluetooth, TCP,
      UDP, I2C, etc.).
  - Graphics
-   - [`fn buffer()`](#fn-buffer) Create a buffer on the GPU.
    - [`fn camera()`](#fn-camera) Get camera footage.
    - [`fn canvas()`](#fn-canvas) Create a canvas.
    - [`fn render()`](#fn-render) Render to a canvas.
    - [`fn screen()`](#fn-screen) Request access to a screen.
-   - [`fn shader()`](#fn-shader) Load shader.
+   - [`fn model()`](#fn-model) Load GLB model file.
  - Audio
    - [`fn speakers()`](#fn-speakers) Query and select speakers
    - [`fn microphone()`](#fn-microphone) Query and select microphone
@@ -320,9 +319,6 @@ conversion may take time (and have it's own specialized hardware).
 
 ## Graphics
 
-### `fn buffer()`
-**TODO** - Notes: Create and set buffer (`List[f32]`).
-
 ### `fn camera()`
 **TODO** - Notes: GPU raster or CPU raster or both?
 
@@ -335,9 +331,18 @@ conversion may take time (and have it's own specialized hardware).
 ### `fn screen()`
 **TODO** - Notes: request a screen, returns `None` (`0`) if all are being used.
 
-### `fn shader()`
-**TODO** - Notes: takes WebAssembly binary format with `"export"` functions -
-format then converted into native code (SPIR-V, GLSL, etc.).
+### `fn model()`
+```wat
+(import "ardaku" "model" (func $model
+    (param $glb_data i32)
+    (param $glb_size i32)
+    (result i32)
+))
+```
+
+Load the binary format for GLTF to the GPU.  Returns a `Future { -> i32 }, that
+becomes ready with the model ID once loaded.  The GLB file contains PBR
+(physically based rendering inputs to the shader) and vertex data.
 
 ---
 
