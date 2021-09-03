@@ -15,6 +15,7 @@ features = ["universal", "cranelift"]
 
 [dependencies.flume]
 version = "0.10"
+default-features = false
 
 [dependencies.pasts]
 version = "0.8"

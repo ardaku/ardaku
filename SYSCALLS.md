@@ -4,31 +4,220 @@ necessary because WASI lacks multi-media functionality, and is not designed with
 async-by-default in mind, as well as the fact that WASI assumes a tree-style
 filesystem.
 
+Allocation is not handled by the syscalls.  Neither is memory-mapped file
+support.  Both must be implemented in the WebAssembly module.  It's encouraged
+to reduce allocation as much as possible, and use simpler allocators (such as
+bump) with maximum data sizes.  The minimum number of pages is 256 in wasmer,
+and it's expected to try to stay around that number if possible.
+
  - Types
    - `typedef Future: NonZero[i32] { -> i64 }`
    - `typedef Listener: Future`
 
 ---
 
- - General (Async Fundamentals):
-   - [`fn discard()`](#fn-discard) Discard a future.
-   - [`fn listen()`](#fn-listen) Create a listener future to check when other
-     futures are ready.
-   - [`fn wait()`](#fn-wait) Wait on a listener future
- - General (Dynamic Data Allocation)
-   - [`fn alloc()`](#fn-alloc) Dynamically gain temporary data storage from or
-     cede it to the system.
- - Time
-   - [`fn now()`](#fn-now) Get the current date and time.
-   - [`fn timer()`](#fn-timer) Create a timer.
- - Journal - Standard I/O
-   - [`fn log()`](#fn-log) Log a message to the journal.
-   - [`fn prompt()`](#fn-prompt) Prompt the user to input a line of text.
- - Files (Filesystem)
-   - [`fn file()`](#fn-file) Choose a file to open/load from a storage drive
-     with file chooser or implicit.
-   - [`fn sync()`](#fn-sync) Synchronize &amp; Save changes to storage drive if
-     not already auto-saved.
+ 1. [`fn connector()`](#fn-connector) - Check for new devices to connect to
+ 2. [`fn timer()`](#fn-timer) - Set up a CPU timer
+ 3. [`fn now()`](#fn-now) - Get the time from the OS
+ 4. [`fn log()`](#fn-log) - Write out to the debug log
+ 5. [`fn discard()`](#fn-discard) - Discard future (relinquish resources)
+ 6. [`fn watch()`](#fn-watch) - Add event(s) to watcher, and wait for event
+ 7. [`fn open()`](#fn-open) - Request to open a different file (Ctrl-E)
+ 8. [`fn load()`](#fn-load) - Load a page from the file
+ 9. [`fn save()`](#fn-save) - Save a page to the file
+ 10. [`fn share()`](#fn-share) - Share current file with another app (Alt-S)
+ 11. [`fn request()`](#fn-request) - Request a file from another app (Alt-E)
+ 12. [`fn prompt()`](#fn-prompt) - Prompt the user (debug log)
+
+---
+
+## `fn connector()`
+```wat
+(import "ardaku" "connector" (func $connector
+    (param $hardware_id i32)
+    (result i32)
+))
+```
+
+Create a connector for a specific type of hardware.
+
+ - 0x0000_0000: MIDI Device
+ - 0x0000_0001: Speakers (Audio Playback Device)
+ - 0x0000_0002: Microphone (Audio Capture Device)
+ - 0x0000_0003: Camera (Webcam)
+ - 0x0000_0004: Screen (Display, Monitor)
+ - 0x0000_0005: Gamepad (Joystick)
+ - 0x0000_0006: Flightstick
+ - 0x0000_0007: USB Input (Other)
+ - 0x0000_0008: Keyboard
+ - 0x0000_0009: Mouse
+ - 0x0000_000A: RESERVED
+ - ...........
+ - 0xFFFF_FFFF: RESERVED
+
+## `fn timer()`
+```wat
+(import "ardaku" "timer" (func $timer
+    (param $nanos i64)
+    (result i32)
+))
+```
+
+Create a timer Future.
+
+## `fn now()`
+```wat
+(import "ardaku" "now" (func $now
+    (result i32)
+))
+```
+
+Queue a task that produces the current date and time.  Never fails.  Produces
+`@Date i64` structure:
+ - `year: s16` (-32768 to 32767)
+ - `month: u8` (1 to 12)
+ - `day: u8` (1 to 31)
+ - `hour: u8` (0 to 23)
+ - `minute: u8` (0 to 60)
+ - `millis: u16` (0 to 60_000 - usually, may go higher for time leaps)
+
+## `fn log()`
+```wat
+(import "ardaku" "log" (func $now
+    (param $text i32)
+    (param $size i32)
+    (result i32)
+))
+```
+
+Log a UTF-8 text message to the journal for debugging/investigation purposes.
+You may prepend the text with a filter name followed by a null byte to allow for
+easier message sorting.  Returns future that is ready when the queued task
+writes out to the system log.  Always returns the same future, so it's not
+necessary to discard it.
+
+## `fn discard()`
+```wat
+(import "ardaku" "discard" (func $discard
+    (param $future i32)
+))
+```
+
+Relinquish resources associated with a future.
+
+## `fn watch()`
+```wat
+(import "ardaku" "watch" (func $watch
+    (param $watcher i32) ;; The watcher to watch for events from
+    (param $events i32)  ;; Opt[@($count i32, [($fut i32, $fn i32); $count])]
+    (result i64)         ;; Return value from event reactor
+))
+```
+
+The `watch()` syscall does a blocking watch for asynchronous events, and reacts
+to them.  It can be called in several ways:
+
+ - `(call $watch (param 0) (param $context))`: Returns a new empty watcher.
+ - `(call $watch (param $watcher) (param 0))`: Watch for events on an existing
+   watcher, and return the value from the event reactor.
+ - `(call $watch (param $watcher) (param $events))`: Add events to the watcher,
+   then watch for them, and return the value from the event reactor.
+ - `(call $watch (param $future) (param 0))`: Watch a single future, and return
+   the value it produces.  Currently the second parameter is ignored.
+
+Events stop being watched when [`discard()`](#fn-discard) is called on the
+Future.  Usually, the return value from a future will be `@_` (a reference).
+These references will become invalid once `watch()` is called again.
+
+The function pointer should follow this type:
+
+```wat
+(func $reactor
+    (param $context i32)  ;; The user context passed at creation
+    (param $produced i64) ;; Value produced by the future
+    (result i64)          ;; Return value from event reactor
+)
+```
+
+If you've created a watcher and don't want it to immediately watch, you must add
+it as an Future to an existing watcher.  Blocking calls to `watch` will then
+return -1.
+
+## `fn open()`
+```wat
+(import "ardaku" "open" (func $open
+    (result i32) ;; Returns future
+))
+
+(import "ardaku" "storage" (memory $storage 1))
+```
+
+This function opens a new file.  The program doesn't know the filename or any
+associated tags (there are no file paths in Ardaku).  The future produces an
+address and file future if the file has opened, and 0 if no file was opened.
+The address is memory-mapped from the disk.  Files are limited to ~256TB.  You
+can have one web-assembly page open for the file at a time.
+
+## `fn load()`
+```wat
+(import "ardaku" "load" (func $load
+    (m_page i32) ;; Memory Page index [0:2^32-1]
+    (f_page i32) ;; File Page index [0:2^32-1]
+    (result i32) ;; Returns future
+))
+```
+
+Load file page by index.  File pages are the same size as web assembly pages
+(64KB).  This makes it possible to address files up to 256TB on a 32-bit CPU.
+If the file needs to become larger, it does so automatically.
+
+## `fn save()`
+```wat
+(import "ardaku" "save" (func $save
+    (m_page i32) ;; Memory Page index [0:2^32-1]
+    (f_page i32) ;; File Page index [0:2^32-1]
+    (result i32) ;; Returns future
+))
+```
+
+Save file page by index.
+
+## `fn prompt()`
+```wat
+(import "ardaku" "prompt" (func $prompt
+    (param $max_size i32)
+    (param $user_data i32)
+    (result i32)
+))
+```
+
+Prompt for a line up to `$max_size` bytes of user-inputted UTF-8 text.
+If the computer runs out of memory, the text input will be limited further.
+Returns a `Future` that produces the inputted `Text: i64(size: i32, data: i32)`.
+
+## `fn share()`
+```wat
+(import "ardaku" "share" (func $share
+    (result i32)
+))
+```
+
+Share the current file with another application.
+
+## `fn request()`
+```wat
+(import "ardaku" "request" (func $request
+    (result i32)
+))
+```
+
+Get future to request a file data stream from another application.  The future
+produces a `DataStream` future and the size of the file in pages.
+
+---
+
+
+
  - Cryptographically-Secure Random Number Generator
    - [`fn rand()`](#fn-rand) Generate a random bit pattern.
  - Task Spawning
@@ -118,23 +307,6 @@ crashing.
 
 ## General (Dynamic Data Allocation)
 
-### `fn alloc()`
-```wat
-(import "ardaku" "alloc" (func $alloc
-    (param $data i32)
-    (param $size i32)
-    (result i32)
-))
-```
-
-Returns the new data index for the (re-)allocation.  Works similar to POSIX
-`realloc()`.
- - If `$data` is `None` (`0`), then allocate `$size` bytes and return their
-   index.
- - If `$size` is `0`, then cede the bytes at index `$data` back to the system.
- - If neither is true, resize the data (possibly changing it's index)
-
-The new memory will not be initialized.
 
 ---
 
@@ -147,13 +319,7 @@ The new memory will not be initialized.
 ))
 ```
 
-Get the current date and time.  Never fails.  Returns `Date` structure:
- - `year: s16` (-32768 to 32767)
- - `month: u8` (1 to 12)
- - `day: u8` (1 to 31)
- - `hour: u8` (0 to 23)
- - `minute: u8` (0 to 60)
- - `millis: u16` (0 to 60_000 - usually, may go higher for time leaps)
+
 
 ### `fn timer()`
 ```wat
@@ -172,33 +338,7 @@ returns `Opt[Timer]`, and only returns `None` (`0`) if out of memory.
 
 ---
 
-## Journal - Standard I/O
 
-### `fn log()`
-```wat
-(import "ardaku" "log" (func $log
-    (param $text_data i32)
-    (param $text_size i32)
-))
-```
-
-Log a UTF-8 text message to the journal for debugging/investigation purposes.
-You may prepend the text with a filter name followed by a null byte to allow for
-easier message sorting.
-
-### `fn prompt()`
-```wat
-(import "ardaku" "prompt" (func $prompt
-    (param $max_size i32)
-    (param $user_data i32)
-    (result i32)
-))
-```
-
-Prompt for a line up to `$max_size` bytes of user-inputted UTF-8 text.
-If the computer runs out of memory, the text input will be limited further.
-Returns a `Future` that produces a pointer to the inputted
-`Text: (size: i32, data: i32)`.
 
 ---
 
