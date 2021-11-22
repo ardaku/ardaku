@@ -61,7 +61,7 @@ When `channel_id` is 0, service connector service - by registered name:
  - `grab`: Sends file from other app for importing
 
  - `haptic`: Receives haptic events
- - `input`: Sends input events
+ - [`input`](input.md): Sends input events / Receives input events for subprocesses
 
 You can disconnect a channel in the middle of it's processing as a way of
 cancelling the I/O.  Usually, if not always the I/O will complete anyway - it
