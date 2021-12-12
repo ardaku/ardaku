@@ -1,4 +1,4 @@
-// #![no_std]
+#![no_std]
 
 use wasmi::{
     FuncInstance, FuncRef, ImportsBuilder, Module, ModuleImportResolver,
