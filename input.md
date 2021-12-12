@@ -101,7 +101,7 @@ Standard 64 Key:
  61. Left / (Select)
  62. Down / (Select)
  63. Right / (Select)
- 64. Lang (Next keyboard language layout) / (Previous)
+ 64. Language, Kanji/Half-Width/Full-Width, Han/Yeong (Next input mode) / (Previous)
  65. F1 / F13
  66. F2 / F14
  67. F3 / F15
@@ -114,7 +114,7 @@ Standard 64 Key:
  74. F10 / F22
  75. F11 / F23
  76. F12 / F24
- 77. Script (Toggle language script) / Configure Language
+ 77. Conversion, Hanja / Non-conversion
  78. App (Next App) / (Previous)
  79. Ext (Extension Lock) / Scr (Scroll Lock)
  80. Display - Fn+W (Toggle Display on/off) / (Webcam on/off)
@@ -123,8 +123,8 @@ Standard 64 Key:
  83. Airplane - Fn+T (Toggle Airplane Mode) / (Enable/Disable Bluetooth)
  84. WorkspaceTop - Fn+Y
  85. WorkspaceUp - Fn+U
- 86. RESERVED - Fn+I
- 87. RESERVED - Fn+O
+ 86. Katakana/Hiragana/Rōmaji - Fn+I
+ 87. Alphanumeric - Fn+O
  88. Screenshot - Fn+P (Print Screen - To File) / (Print Screen - To Clipboard)
  89. Insert - Fn+BracketL
  90. Delete - Fn+BrackerR
@@ -145,7 +145,7 @@ Standard 64 Key:
  105. Pause - Fn+Z
  106. Break - Fn+X
  107. Clear - Fn+C
- 108. RESERVED - Fn+V
+ 108. SysRq - Fn+V (Debug Key)
  109. Menu - Fn+B (Context Menu Key)
  110. WorkspaceDown - Fn+N
  111. WorkspaceBottom - FN+M
@@ -242,7 +242,7 @@ Standard 64 Key:
  202. F22 - Ext+0
  203. F23 - Ext+Minus
  204. F24 - Ext+Equal
- 205. RESERVED /Ext+Backslash
+ 205. Non-conversion - Ext+Backslash
  206. RESERVED /Ext+Tab
  207. RESERVED /Ext+Q
  208. RESERVED /Ext+W
