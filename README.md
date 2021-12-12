@@ -1,6 +1,26 @@
 # Ardaku
-Ardaku is a general-purpose unikernel operating system running Wasmer to execute
-WebAssembly applications.
+Ardaku is a general-purpose WebAssembly application engine.  It's intended to
+run in any userspace program or on bare metal as sandboxing for an OS (see the
+[Arc](https://github.com/ardaku/arc) project).
+
+## Trait
+To use Ardaku as a library, you must implement a trait:
+
+```rust
+pub trait Syscall {
+    /// Read UTF-32 character from stdin.
+    fn read(&self) -> u32;
+
+    /// Write UTF-32 character to stdout.
+    fn write(&self, byte: u32);
+
+    /// Return kernel version
+    fn version(&self) -> u32;
+
+    /// Reboot the system.
+    fn reboot(&self);
+}
+```
 
 ## API
 The API for applications to communicate with Ardaku and each other is based on
