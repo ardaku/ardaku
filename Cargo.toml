@@ -1,24 +1,12 @@
 [package]
 name = "ardaku"
-version = "0.0.1"
-edition = "2018"
-description = "WASM Environment / Unikernel OS"
+version = "0.1.0"
+edition = "2021"
+description = "WASM Environment"
 license = "BSL-1.0"
 documentation = "https://docs.rs/ardaku"
 homepage = "https://ardaku.org"
 repository = "https://github.com/ardaku/ardaku"
 
-[dependencies.wasmer]
-version = "2.0"
-default-features = false
-features = ["universal", "cranelift"]
-
-[dependencies.flume]
-version = "0.10"
-default-features = false
-
-[dependencies.pasts]
-version = "0.8"
-
-[dependencies.devout]
-version = "0.2"
+[dependencies.wasmi]
+version = "0.9"

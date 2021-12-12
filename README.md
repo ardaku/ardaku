@@ -3,23 +3,19 @@ Ardaku is a general-purpose WebAssembly application engine.  It's intended to
 run in any userspace program or on bare metal as sandboxing for an OS (see the
 [Arc](https://github.com/ardaku/arc) project).
 
-## Trait
-To use Ardaku as a library, you must implement a trait:
+## Getting Started
+To boot up Ardaku, you will need a startup application.  The file *example.wat*
+is provided in the root folder.  To compile it, you will need to install wabt.
+Once you do, run:
 
-```rust
-pub trait Syscall {
-    /// Read UTF-32 character from stdin.
-    fn read(&self) -> u32;
+```bash
+wat2wasm example.wat
+```
 
-    /// Write UTF-32 character to stdout.
-    fn write(&self, byte: u32);
+This will create an *example.wasm* file.  You can now run it locally with:
 
-    /// Return kernel version
-    fn version(&self) -> u32;
-
-    /// Reboot the system.
-    fn reboot(&self);
-}
+```bash
+cargo run --example demo -- example.wasm
 ```
 
 ## API
@@ -101,21 +97,6 @@ buffering, dropping, cancelling, or blocking of messages.
 
 Which method is used depends on the type of program being written, choose
 wisely!
-
-## Getting Started
-To boot up Ardaku, you will need a startup application.  The file *example.wat*
-is provided in the root folder.  To compile it, you will need to install wabt.
-Once you do, run:
-
-```bash
-wat2wasm example.wat
-```
-
-This will create an *example.wasm* file.  You can now run it locally with:
-
-```bash
-cargo run --release example.wasm
-```
 
 ## Ideas
  - The operating system should be able to run as an application within another
