@@ -8,13 +8,21 @@
     ))
 
     ;; Export a single page memory of 64KB.
-    (memory $0 (export "pages") 1)
+    (memory $0 (export "ardaku") 1)
 
     ;; Define constants
     (data (i32.const 1) "log")
     (data (i32.const 4) "Hello World!")
-    (data (i32.const 16) "\00\01\03\01") ;; `Message` Connect to log service
-    (data (i32.const 32) "\01\01\0C\04") ;; `Message` Send text to log service
+    ;; `Message` Connect to log service
+    (data (i32.const 16) "\00\00\00\00") ;; Connect
+    (data (i32.const 20) "\01\00\00\00") ;; Index 1
+    (data (i32.const 24) "\03\00\00\00") ;; Name length 3
+    (data (i32.const 28) "\01\00\00\00") ;; Pointer to "log" @1
+    ;; `Message` Send text to log service
+    (data (i32.const 32) "\01\00\00\00") ;; Index 1: Log
+    (data (i32.const 36) "\01\00\00\00") ;; Set Index 1 (don't change it)
+    (data (i32.const 40) "\0C\00\00\00") ;; Message length 12
+    (data (i32.const 44) "\04\00\00\00") ;; Pointer to "Hello World!" @4
 
     ;; Set the start function
     (start $start)

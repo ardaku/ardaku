@@ -1,3 +1,5 @@
+use std::io::{self, Write};
+
 struct System;
 
 impl ardaku::System for System {
@@ -5,8 +7,11 @@ impl ardaku::System for System {
         todo!()
     }
 
-    fn write(&self, byte: u32) {
-        print!("{}", byte);
+    fn write(&self, line: &[u8]) {
+        let mut stdout = io::stdout();
+        let _ = stdout.write_all(line);
+        let _ = stdout.write_all(b"\n");
+        let _ = stdout.flush();
     }
 
     fn version(&self) -> u32 {
