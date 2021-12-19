@@ -8,6 +8,12 @@ documentation = "https://docs.rs/ardaku"
 homepage = "https://ardaku.org"
 repository = "https://github.com/ardaku/ardaku"
 
+[dependencies.rdaku]
+path = "rdaku"
+
 [dependencies.wasmi]
 version = "0.10"
 default-features = false
+
+[workspace]
+members = ["daku", "rdaku"]

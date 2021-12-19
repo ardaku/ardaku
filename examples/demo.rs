@@ -1,4 +1,5 @@
 use std::io::{self, Write};
+use ardaku::{Device, DeviceKind};
 
 struct System;
 
@@ -7,7 +8,7 @@ impl ardaku::System for System {
         todo!()
     }
 
-    fn write(&self, line: &[u8]) {
+    fn log(&self, line: &[u8]) {
         let mut stdout = io::stdout();
         let _ = stdout.write_all(line);
         let _ = stdout.write_all(b"\n");
@@ -21,6 +22,11 @@ impl ardaku::System for System {
     fn reboot(&self) {
         std::process::exit(0);
     }
+
+    fn connect(&self, _: DeviceKind) { todo!() }
+    fn disconnect(&self, _: DeviceKind) { todo!() }
+    fn register(&self, _: Device) { todo!() }
+    fn deregister(&self, _: Device) { todo!() }
 }
 
 fn main() -> ardaku::Result<()> {

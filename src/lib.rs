@@ -7,9 +7,7 @@ use wasmi::{
     Signature, Trap, ValueType,
 };
 
-/// Device handle (similar to unix file descriptor).
-#[derive(Debug)]
-pub struct Device(u32);
+pub use rdaku::Device;
 
 /// An Ardaku event.
 #[derive(Debug)]
