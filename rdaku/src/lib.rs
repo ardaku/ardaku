@@ -2,8 +2,27 @@
 #[derive(Debug)]
 pub struct Device(u32);
 
+/// Command type; to be sent to command buffer.
+#[repr(C, packed)]
+#[derive(Debug, Copy, Clone)]
+pub struct Command {
+    /// Channel to send a message on (0 is special "connector" channel)
+    pub channel_id: i32,
+
+    /// Channel ID is a user-chosen index into an array of function references.
+    /// (set to 0 to disconnect `channel_id`)
+    pub channel_id_new: u32,
+
+    /// Size of message (in bytes)
+    pub message_size: u32,
+
+    /// Message data (pointer).
+    pub message_data: u32,
+}
+
 /// Services provided by the Ardaku engine.
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone)]
+#[repr(u8)]
 pub enum Service {
     /// Serial / debug (file) logging
     Logging = 0,
@@ -84,6 +103,9 @@ pub enum Service {
     Timer = 30,
     /// Get Date/Time
     Clock = 31,
+
+    /// Spawn a new thread.
+    Spawn = 32,
 }
 
 #[cfg(test)]

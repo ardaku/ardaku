@@ -135,7 +135,7 @@ pub enum Error {
     LinkerFailed,
     /// Application has crashed from one of the various traps
     Crash(Trap),
-    /// Application does not export "ardaku" memory.
+    /// Application does not export memory as "memory".
     MissingMemory,
 }
 
@@ -242,7 +242,7 @@ pub fn start<S: System>(system: S, exe: &[u8]) -> Result<()> {
 
     let memory = match instance
         .not_started_instance()
-        .export_by_name("ardaku")
+        .export_by_name("memory")
         .ok_or(Error::MissingMemory)?
     {
         ExternVal::Memory(mem) => mem,

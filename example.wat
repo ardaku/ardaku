@@ -8,7 +8,7 @@
     ))
 
     ;; Export a single page memory of 64KB.
-    (memory $0 (export "ardaku") 1)
+    (memory $0 (export "memory") 1)
 
     ;; Define constants
     (data (i32.const 1) "log")
