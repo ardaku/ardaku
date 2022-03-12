@@ -1,7 +1,7 @@
 # Ardaku
 Ardaku is a general-purpose WebAssembly application engine.  It's intended to
 run in any userspace program or on bare metal as sandboxing for an OS (see the
-[Arc](https://github.com/ardaku/arc) project).
+[Quantii](https://github.com/ardaku/quantii) project).
 
 ## Getting Started
 To boot up Ardaku, you will need a startup application.  The file *example.wat*
