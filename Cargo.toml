@@ -11,3 +11,4 @@ repository = "https://github.com/ardaku/ardaku"
 [dependencies.wasmi]
 version = "0.14"
 default-features = false
+git = "https://github.com/ardaku/wasmi.git"

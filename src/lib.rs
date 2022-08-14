@@ -41,8 +41,8 @@ pub enum Error {
     Crash(Trap),
     /// Application does not export "ardaku" memory.
     MissingMemory,
-    /// "start" function not exported
-    MissingStart,
+    /// "run" function not exported
+    MissingRun,
 }
 
 struct State<S: System> {
@@ -61,8 +61,8 @@ where
     todo!("{:?}", (size, data));
 }
 
-/// Start an Ardaku application.  `exe` must be a .wasm file.
-pub fn start<S>(system: S, exe: &[u8]) -> Result<()>
+/// Run an Ardaku application.  `exe` must be a .wasm file.
+pub fn run<S>(system: S, exe: &[u8]) -> Result<()>
 where
     S: System + 'static,
 {
@@ -92,15 +92,15 @@ where
         .ok_or(Error::MissingMemory)?;
     store.state_mut().memory = MaybeUninit::new(memory);
 
-    let start = instance
-        .get_export(&store, "start")
+    let run = instance
+        .get_export(&store, "run")
         .and_then(Extern::into_func)
-        .ok_or(Error::MissingStart)?
+        .ok_or(Error::MissingRun)?
         .typed::<(), (), _>(&mut store)
-        .map_err(|_| Error::MissingStart)?;
+        .map_err(|_| Error::MissingRun)?;
 
     // And finally we can call the wasm!
-    start.call(&mut store, ()).map_err(Error::Crash)?;
+    run.call(&mut store, ()).map_err(Error::Crash)?;
 
     Ok(())
 }

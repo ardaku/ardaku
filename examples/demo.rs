@@ -27,5 +27,5 @@ fn main() -> ardaku::Result<()> {
     let app_path = std::env::args().skip(1).next().expect("Provide wasm file!");
     let exe = std::fs::read(app_path).expect("Couldn't find file!");
 
-    ardaku::start(System, &exe)
+    ardaku::run(System, &exe)
 }
