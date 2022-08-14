@@ -12,5 +12,5 @@ version = "0.4"
 
 [dependencies.daku]
 git = "https://github.com/ardaku/daku.git"
-rev = "44aabf7"
+rev = "b27274187fcf2bb4897dd01188d5a9e80a64f6fd"
 features = ["log", "prompt"]

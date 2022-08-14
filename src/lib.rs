@@ -1,5 +1,7 @@
 #![no_std]
 
+extern crate alloc;
+
 use core::mem::MaybeUninit;
 use wasmi::core::Trap;
 use wasmi::{Caller, Extern, Func, Linker, Memory, Module, Store};
@@ -50,15 +52,80 @@ struct State<S: System> {
     system: S,
 }
 
+/// Command
+#[derive(Debug)]
+struct Command {
+    ready: u32,
+    channel: u32,
+    size: u32,
+    data: u32,
+}
+
+/// Connect
+#[derive(Debug)]
+struct Connect {
+    ready_capacity: u32,
+    ready_data: u32,
+    portals_size: u32,
+    portals_data: u32,
+}
+
+fn le_u32(slice: &[u8]) -> u32 {
+    u32::from_le_bytes([slice[0], slice[1], slice[2], slice[3]])
+}
+
+impl<S: System> State<S> {
+    /// Connect channels
+    fn connect(caller: &mut Caller<'_, Self>, mem: Memory, connect: Connect) {
+        let _bytes = mem.data_mut(caller);
+        todo!("{connect:?}");
+    }
+
+    /// Execute a command from an asynchronous request
+    fn execute(caller: &mut Caller<'_, Self>, mem: Memory, command: Command) {
+        if command.channel == 0 {
+            let bytes = mem.data_mut(&mut *caller);
+            // FIXME: Trigger a trap if doesn't match
+            assert_eq!(command.size, 16);
+            let offset: usize = command.data.try_into().unwrap();
+            let connect = Connect {
+                ready_capacity: le_u32(&bytes[offset..]),
+                ready_data: le_u32(&bytes[offset+4..]),
+                portals_size: le_u32(&bytes[offset+8..]),
+                portals_data: le_u32(&bytes[offset+12..]),
+            };
+
+            Self::connect(caller, mem, connect);
+        } else {
+            todo!();
+        }
+    }
+}
+
 /// Asynchronous Request
 fn ar<S>(mut caller: Caller<'_, State<S>>, size: u32, data: u32) -> u32
 where
     S: System + 'static,
 {
     let state = caller.host_data_mut();
-    let memory = unsafe { state.memory.assume_init_mut() };
+    let memory = unsafe { state.memory.assume_init_mut() }.clone();
+    let data: usize = data.try_into().unwrap();
 
-    todo!("{:?}", (size, data));
+    let mut offset = data;
+    for _ in 0..size {
+        let bytes = memory.data_mut(&mut caller);
+        let command = Command {
+            ready: le_u32(&bytes[offset..]),
+            channel: le_u32(&bytes[offset+4..]),
+            size: le_u32(&bytes[offset+8..]),
+            data: le_u32(&bytes[offset+12..]),
+        };
+        offset += 16;
+
+        State::<S>::execute(&mut caller, memory, command);
+    }
+
+    todo!("Wait for a command to complete")
 }
 
 /// Run an Ardaku application.  `exe` must be a .wasm file.
