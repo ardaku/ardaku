@@ -3,34 +3,43 @@
 extern crate alloc;
 
 use core::mem::MaybeUninit;
+use core::task::Poll;
 use wasmi::core::Trap;
 use wasmi::{Caller, Extern, Func, Linker, Memory, Module, Store};
-
-/// An Ardaku event.
-#[repr(u32)]
-#[derive(Debug)]
-pub enum Event {
-    /// Read UTF-32 character from stdin
-    Read = 0u32,
-}
+use log::Level;
 
 /// The system should implement these syscalls
 pub trait System {
-    /// Sleep until an event happens.
-    fn sleep(&self) -> (Event, u32);
+    /// Sleep until some event(s) happen.
+    ///
+    /// # Returns
+    ///  - Length of ready list
+    ///
+    /// # Safety
+    ///  - Undefined behavior if return value != written length of ready list
+    unsafe fn sleep(&self, memory: &mut [u8], index: usize, length: usize) -> usize;
 
-    /// Write a line of text to stdout
-    fn write(&self, line: &[u8]);
+    /// Write a message to the logs.
+    fn log(&self, text: &str, level: Level, target: &str);
 
-    /// Return kernel version
-    fn version(&self) -> u32;
-
-    /// Reboot the system
-    fn reboot(&self);
+    /// Read a line of valid UTF-8 to the buffer, not including the newline
+    /// character.
+    ///
+    /// # Returns
+    ///  - `Ok(num_of_bytes_read)`
+    ///  - `Err(num_of_bytes_required)`
+    ///
+    /// # Safety
+    ///  - Undefined behavior if implementation writes invalid UTF-8.
+    ///  - Undefined behavior if bytes written != `Ok(num_of_bytes_read)`
+    unsafe fn read_line(&self, ready: u32, index: usize, length: usize);
 }
 
+/// I/O Result
+pub type IoResult = core::result::Result<usize, usize>;
+
 /// Ardaku Result
-pub type Result<T> = core::result::Result<T, Error>;
+pub type Result<T = ()> = core::result::Result<T, Error>;
 
 /// An error in Ardaku
 #[derive(Debug)]
@@ -50,6 +59,8 @@ pub enum Error {
 struct State<S: System> {
     memory: MaybeUninit<Memory>,
     system: S,
+    ready_list: (u32, u32),
+    portals: [bool; Portal::Max as u32 as usize],
 }
 
 /// Command
@@ -70,6 +81,24 @@ struct Connect {
     portals_data: u32,
 }
 
+/// Portal IDs
+#[repr(u32)]
+#[derive(Debug, Copy, Clone)]
+enum Portal {
+    /// Task spawning API
+    Spawn = 0,
+    /// Blocking task spawning API
+    SpawnBlocking = 1,
+    /// Logging API (stdout/printf)
+    Log = 2,
+    /// Developer command API (stdin/scanf)
+    Prompt = 3,
+    /// MPMC Channel API
+    Channel = 4,
+    /// 
+    Max = 5,
+}
+
 fn le_u32(slice: &[u8]) -> u32 {
     u32::from_le_bytes([slice[0], slice[1], slice[2], slice[3]])
 }
@@ -77,12 +106,31 @@ fn le_u32(slice: &[u8]) -> u32 {
 impl<S: System> State<S> {
     /// Connect channels
     fn connect(caller: &mut Caller<'_, Self>, mem: Memory, connect: Connect) {
-        let _bytes = mem.data_mut(caller);
-        todo!("{connect:?}");
+        let state = caller.host_data_mut();
+       
+        state.ready_list = (connect.ready_capacity, connect.ready_data);
+       
+        let mut offset: usize = connect.portals_data.try_into().unwrap();
+        for _ in 0..connect.portals_size {
+            let bytes = mem.data_mut(&mut *caller);
+            let portal = le_u32(&bytes[offset..]);
+            let portal = match portal {
+                0 => Portal::Spawn,
+                1 => Portal::SpawnBlocking,
+                2 => Portal::Log,
+                3 => Portal::Prompt,
+                4 => Portal::Channel,
+                5..=u32::MAX => todo!("Host trap: invalid portal"),
+            };
+            offset += 4;
+            let state = caller.host_data_mut();
+            state.portals[portal as u32 as usize] = true;
+            log::trace!(target: "ardaku", "Connect portal: {portal:?}");
+        }
     }
 
     /// Execute a command from an asynchronous request
-    fn execute(caller: &mut Caller<'_, Self>, mem: Memory, command: Command) {
+    fn execute(caller: &mut Caller<'_, Self>, mem: Memory, command: Command) -> bool {
         if command.channel == 0 {
             let bytes = mem.data_mut(&mut *caller);
             // FIXME: Trigger a trap if doesn't match
@@ -96,6 +144,7 @@ impl<S: System> State<S> {
             };
 
             Self::connect(caller, mem, connect);
+            true
         } else {
             todo!();
         }
@@ -107,11 +156,14 @@ fn ar<S>(mut caller: Caller<'_, State<S>>, size: u32, data: u32) -> u32
 where
     S: System + 'static,
 {
+    log::trace!(target: "ardaku", "Syscall ({size} commands)");
+
     let state = caller.host_data_mut();
     let memory = unsafe { state.memory.assume_init_mut() }.clone();
     let data: usize = data.try_into().unwrap();
 
     let mut offset = data;
+    let mut ready_immediately = 0;
     for _ in 0..size {
         let bytes = memory.data_mut(&mut caller);
         let command = Command {
@@ -122,10 +174,19 @@ where
         };
         offset += 16;
 
-        State::<S>::execute(&mut caller, memory, command);
+        ready_immediately += u32::from(u8::from(State::<S>::execute(&mut caller, memory, command)));
     }
 
-    todo!("Wait for a command to complete")
+    let state = caller.host_data_mut();
+    // let bytes = memory.data_mut(&mut caller);
+
+    if ready_immediately == 0 {
+        unsafe {
+            state.system.sleep(&mut [], state.ready_list.0.try_into().unwrap(), state.ready_list.1.try_into().unwrap()).try_into().unwrap()
+        }
+    } else {
+        ready_immediately
+    }
 }
 
 /// Run an Ardaku application.  `exe` must be a .wasm file.
@@ -140,6 +201,8 @@ where
         State {
             system,
             memory: MaybeUninit::uninit(),
+            ready_list: (0, 0),
+            portals: [false; Portal::Max as u32 as usize],
         },
     );
     let async_request = Func::wrap(&mut store, ar);
