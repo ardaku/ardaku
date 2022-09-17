@@ -11,6 +11,7 @@ path = "src/mod.rs"
 version = "0.4"
 
 [dependencies.daku]
-git = "https://github.com/ardaku/daku.git"
-rev = "b27274187fcf2bb4897dd01188d5a9e80a64f6fd"
+# git = "https://github.com/ardaku/daku.git"
+# rev = "b27274187fcf2bb4897dd01188d5a9e80a64f6fd"
+path = "../../daku"
 features = ["log", "prompt"]

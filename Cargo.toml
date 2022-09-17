@@ -12,9 +12,9 @@ repository = "https://github.com/ardaku/ardaku"
 version = "0.4"
 
 [dependencies.wasmi]
-version = "0.14"
+version = "0.16"
 default-features = false
-git = "https://github.com/ardaku/wasmi.git"
+# git = "https://github.com/ardaku/wasmi.git"
 
 [dev-dependencies]
 env_logger = "0.9"
