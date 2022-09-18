@@ -2,7 +2,7 @@
 
 extern crate alloc;
 
-use alloc::vec::Vec;
+use alloc::{vec::Vec};
 use core::mem::MaybeUninit;
 use wasmi::core::Trap;
 use wasmi::{Caller, Extern, Func, Linker, Memory, Module, Store};
@@ -66,7 +66,7 @@ struct State<S: System> {
     // Next channel ID
     next_channel: u32,
     // Connected channels
-    conn_channels: Vec<Option<ConnectedChannel>>,
+    conn_channels: Vec<Option<ConnectedChannel<S>>>,
 }
 
 /// Command
@@ -114,20 +114,20 @@ struct Log {
     level: Level,
 }
 
-struct ConnectedChannel {
+struct ConnectedChannel<S: System> {
     portal: Portal,
-    callback: fn(&mut dyn Control, u32, u32),
+    callback: fn(&mut S, &mut [u8], u32, u32),
 }
 
 fn le_u32(slice: &[u8]) -> u32 {
     u32::from_le_bytes([slice[0], slice[1], slice[2], slice[3]])
 }
 
-fn fixme(_: &mut dyn Control, _: u32, _: u32) {
+fn fixme<S: System>(_: &mut S, _: &mut [u8], _: u32, _: u32) {
     log::error!(target: "ardaku", "FIXME");
 }
 
-fn log(control: &mut dyn Control, size: u32, data: u32) {
+fn log<S: System>(system: &mut S, bytes: &mut [u8], size: u32, data: u32) {
     let size: usize = size.try_into().unwrap();
     let data: usize = data.try_into().unwrap();
 
@@ -135,7 +135,6 @@ fn log(control: &mut dyn Control, size: u32, data: u32) {
         todo!("Host trap: command size");
     }
    
-    let bytes = control.memory();
     let log_cmd = &bytes[data..];
 
     let bites = &log_cmd[..size];
@@ -162,13 +161,15 @@ fn log(control: &mut dyn Control, size: u32, data: u32) {
     };
 
     let level = match log_cmd[8] {
-        0 => log::trace!(target: target, "{message}"),
-        1 => log::debug!(target: target, "{message}"),
-        2 => log::info!(target: target, "{message}"),
-        3 => log::warn!(target: target, "{message}"),
-        4 => log::error!(target: target, "{message}"),
+        0 => Level::Trace,
+        1 => Level::Debug,
+        2 => Level::Info,
+        3 => Level::Warn,
+        4 => Level::Error,
         _ => todo!("Host trap: invalid log level"),
     };
+
+    system.log(message, level, target);
 }
 
 trait Control {
@@ -209,6 +210,12 @@ impl<S: System> Internal<'_, S> {
 }
 
 impl<S: System> State<S> {
+    fn bytes_and_state<'a>(caller: &'a mut Caller<'_, Self>) -> (&'a mut [u8], &'a mut State<S>) {
+        let state = caller.host_data_mut();
+        let memory = unsafe { state.memory.assume_init() };
+        memory.data_and_store_mut(caller)
+    }
+
     /// Allocate a channel
     fn channel(&mut self) -> u32 {
         if let Some(channel_id) = self.drop_channels.pop() {
@@ -221,29 +228,28 @@ impl<S: System> State<S> {
     }
 
     /// Connect channels
-    fn connect(internal: &mut Internal<'_, S>, mem: Memory, connect: Connect) {
-        let state = internal.state();
-       
-        state.ready_list = (connect.ready_capacity, connect.ready_data);
+    fn connect(&mut self, bytes: &mut [u8], connect: Connect) {
+        self.ready_list = (connect.ready_capacity, connect.ready_data);
        
         let mut offset: usize = connect.portals_data.try_into().unwrap();
         for _ in 0..connect.portals_size {
-            let bytes = internal.memory();
             let portal = le_u32(&bytes[offset..]);
             let (portal, callback) = match portal {
-                0 => (Portal::Spawn, fixme as fn(&mut dyn Control, u32, u32)),
-                1 => (Portal::SpawnBlocking, fixme as fn(&mut dyn Control, u32, u32)),
-                2 => (Portal::Log, log as fn(&mut dyn Control, u32, u32)),
-                3 => (Portal::Prompt, fixme as fn(&mut dyn Control, u32, u32)),
-                4 => (Portal::Channel, fixme as fn(&mut dyn Control, u32, u32)),
+                0 => (Portal::Spawn, fixme::<S> as fn(&mut S, &mut [u8], u32, u32)),
+                1 => (Portal::SpawnBlocking, fixme::<S> as fn(&mut S, &mut [u8], u32, u32)),
+                2 => (Portal::Log, log::<S> as fn(&mut S, &mut [u8], u32, u32)),
+                3 => (Portal::Prompt, fixme::<S> as fn(&mut S, &mut [u8], u32, u32)),
+                4 => (Portal::Channel, fixme::<S> as fn(&mut S, &mut [u8], u32, u32)),
                 5..=u32::MAX => todo!("Host trap: invalid portal"),
             };
-            let state = internal.state();
-            state.portals[portal as u32 as usize] = true;
-            let channel_id = state.channel();
-            state.conn_channels.resize_with(usize::try_from(state.next_channel).unwrap(), || None);
-            state.conn_channels[usize::try_from(channel_id).unwrap()] = Some(ConnectedChannel { portal, callback });
-            mem.write(&mut internal.caller, offset, channel_id.to_le_bytes().as_slice());
+            self.portals[portal as u32 as usize] = true;
+            let channel_id = self.channel();
+            self.conn_channels.resize_with(usize::try_from(self.next_channel).unwrap(), || None);
+            self.conn_channels[usize::try_from(channel_id).unwrap()] = Some(ConnectedChannel { portal, callback });
+            
+            for (src, dst) in channel_id.to_le_bytes().into_iter().zip(bytes[offset..].iter_mut()) {
+                *dst = src;
+            }
             log::trace!(target: "ardaku", "Connect portal: {portal:?} (Ch{channel_id})");
             
             // Last thing, increase offset
@@ -252,9 +258,8 @@ impl<S: System> State<S> {
     }
 
     /// Execute a command from an asynchronous request
-    fn execute(internal: &mut Internal<'_, S>, mem: Memory, command: Command) -> bool {
+    fn execute(&mut self, bytes: &mut [u8], command: Command) -> bool {
         if command.channel == 0 {
-            let bytes = internal.memory();
             // FIXME: Trigger a trap if doesn't match
             assert_eq!(command.size, 16);
             let offset: usize = command.data.try_into().unwrap();
@@ -265,28 +270,25 @@ impl<S: System> State<S> {
                 portals_data: le_u32(&bytes[offset+12..]),
             };
 
-            Self::connect(internal, mem, connect);
+            self.connect(bytes, connect);
             true
         } else {
             let Command { channel, size, data, ready } = command;
-            let state = internal.state();
-            let len = state.conn_channels.len();
+            let len = self.conn_channels.len();
             log::trace!(target: "ardaku", "Ch{channel}: {len:?}");
-            let (portal, callback) = if let Some(ref cc) = state.conn_channels[usize::try_from(channel).unwrap()] {
+            let (portal, callback) = if let Some(ref cc) = self.conn_channels[usize::try_from(channel).unwrap()] {
                 (cc.portal, cc.callback)
             } else {
                 todo!("Host trap: invalid channel");
             };
             
-            if !state.portals[portal as usize] {
+            if !self.portals[portal as usize] {
                 todo!("Host trap: unsupported portal");
             }
 
             log::trace!(target: "ardaku", "Ch{channel}: {portal:?}");
 
-            // let bytes = internal.memory();
-
-            callback(internal, size, data);
+            callback(&mut self.system, bytes, size, data);
 
             true // Ready immediately
 
@@ -298,34 +300,30 @@ impl<S: System> State<S> {
     }
 }
 
-fn dbg<S>(caller: Caller<'_, State<S>>, size: u32, text: u32)
+fn dbg<S>(mut caller: Caller<'_, State<S>>, size: u32, text: u32)
 where
     S: System + 'static,
 {
-    let mut internal = Internal { caller };
-    let state = internal.state();
-    let bytes = internal.memory();
+    let (bytes, _state) = State::bytes_and_state(&mut caller);
     let string = core::str::from_utf8(&bytes[usize::try_from(text).unwrap()..][..usize::try_from(size).unwrap()]).expect("daku debug failure");
+
     log::trace!(target: "daku-dbg", "{string}");
 }
 
 /// Asynchronous Request
-fn ar<S>(caller: Caller<'_, State<S>>, size: u32, data: u32) -> u32
+fn ar<S>(mut caller: Caller<'_, State<S>>, size: u32, data: u32) -> u32
 where
     S: System + 'static,
 {
-    let mut internal = Internal { caller };
+    let (bytes, state) = State::bytes_and_state(&mut caller);
 
     log::trace!(target: "ardaku", "Syscall ({size} commands)");
 
-    let state = internal.state();
-    let memory = unsafe { state.memory.assume_init_mut() }.clone();
     let data: usize = data.try_into().unwrap();
 
     let mut offset = data;
     let mut ready_immediately = 0;
     for _ in 0..size {
-        let bytes = memory.data_mut(&mut internal.caller);
         let command = Command {
             ready: le_u32(&bytes[offset..]),
             channel: le_u32(&bytes[offset+4..]),
@@ -336,11 +334,8 @@ where
 
         log::trace!(target: "ardaku", "DBG {command:?}");
 
-        ready_immediately += u32::from(u8::from(State::<S>::execute(&mut internal, memory, command)));
+        ready_immediately += u32::from(u8::from(state.execute(bytes, command)));
     }
-
-    let state = internal.state();
-    // let bytes = memory.data_mut(&mut caller);
 
     if ready_immediately == 0 {
         unsafe {
@@ -352,7 +347,7 @@ where
 }
 
 /// Run an Ardaku application.  `exe` must be a .wasm file.
-pub fn run<S>(system: S, exe: &[u8]) -> Result<()>
+pub fn run<S>(system: S, exe: &[u8]) -> Result
 where
     S: System + 'static,
 {

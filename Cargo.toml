@@ -14,7 +14,8 @@ version = "0.4"
 [dependencies.wasmi]
 version = "0.16"
 default-features = false
-# git = "https://github.com/ardaku/wasmi.git"
+git = "https://github.com/ardaku/wasmi.git"
+branch = "data-and-store-mut"
 
 [dev-dependencies]
 env_logger = "0.9"
