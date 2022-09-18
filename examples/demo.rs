@@ -4,7 +4,6 @@ use std::{
     task::Poll,
 };
 
-use ardaku::IoResult;
 use log::Level;
 
 struct System {
@@ -28,8 +27,8 @@ impl ardaku::System for System {
         let mut handle = stdin.lock();
         let mut buffer = self.buffer.lock().unwrap();
         handle.read_line(&mut buffer).unwrap();
-        let mut read_line = self.read_line.lock().unwrap();
-        if let Some((read_line, index, length)) = read_line.take() {
+        let mut _read_line = self.read_line.lock().unwrap();
+        /*if let Some((read_line, index, length)) = read_line.take() {
             if memory.get_mut(ready_index..ready_length).map(|x| x.len())
                 == Some(4)
             {
@@ -52,7 +51,7 @@ impl ardaku::System for System {
                     return 1*/
                 }
             }
-        }
+        }*/
         0
     }
 
@@ -60,13 +59,19 @@ impl ardaku::System for System {
         log::log!(target: target, level, "{text}")
     }
 
-    unsafe fn read_line(&self, ready: u32, index: usize, length: usize) {
+    unsafe fn read_line(
+        &self,
+        ready: u32,
+        index: usize,
+        length: usize,
+    ) -> ardaku::Result {
         let mut read_line = self.read_line.lock().unwrap();
         *read_line = Some((ready, index, length));
+        Ok(0)
     }
 }
 
-fn main() -> ardaku::Result<()> {
+fn main() -> ardaku::engine::Result<()> {
     // Setup
     env_logger::init();
 

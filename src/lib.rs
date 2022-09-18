@@ -2,11 +2,15 @@
 
 extern crate alloc;
 
+pub mod engine;
+
 use alloc::vec::Vec;
 use core::mem::MaybeUninit;
 
 use log::Level;
-use wasmi::{core::Trap, Caller, Extern, Func, Linker, Memory, Module, Store};
+use wasmi::{Caller, Extern, Func, Linker, Memory, Module, Store};
+
+use self::engine::{Error, Result as EngineResult};
 
 /// The system should implement these syscalls
 pub trait System {
@@ -37,29 +41,16 @@ pub trait System {
     /// # Safety
     ///  - Undefined behavior if implementation writes invalid UTF-8.
     ///  - Undefined behavior if bytes written != `Ok(num_of_bytes_read)`
-    unsafe fn read_line(&self, ready: u32, index: usize, length: usize);
+    unsafe fn read_line(
+        &self,
+        ready: u32,
+        index: usize,
+        length: usize,
+    ) -> Result;
 }
 
-/// I/O Result
-pub type IoResult = core::result::Result<usize, usize>;
-
-/// Ardaku Result
-pub type Result<T = ()> = core::result::Result<T, Error>;
-
-/// An error in Ardaku
-#[derive(Debug)]
-pub enum Error {
-    /// The WASM file is invalid
-    InvalidWasm,
-    /// Memory / function linking failed
-    LinkerFailed,
-    /// Application has crashed from one of the various traps
-    Crash(Trap),
-    /// Application does not export "ardaku" memory.
-    MissingMemory,
-    /// "run" function not exported
-    MissingRun,
-}
+/// Ardaku I/O Result
+pub type Result = core::result::Result<usize, usize>;
 
 struct State<S: System> {
     memory: MaybeUninit<Memory>,
@@ -175,43 +166,6 @@ fn log<S: System>(system: &mut S, bytes: &mut [u8], size: u32, data: u32) {
     };
 
     system.log(message, level, target);
-}
-
-trait Control {
-    fn system(&mut self) -> &mut dyn System;
-    fn memory(&mut self) -> &mut [u8];
-}
-
-impl<S: System> Control for Internal<'_, S> {
-    fn system(&mut self) -> &mut dyn System {
-        self.system()
-    }
-
-    fn memory(&mut self) -> &mut [u8] {
-        self.memory()
-    }
-}
-
-struct Internal<'a, S: System> {
-    caller: Caller<'a, State<S>>,
-}
-
-impl<S: System> Internal<'_, S> {
-    /// Borrow the system
-    fn system(&mut self) -> &mut dyn System {
-        &mut self.state().system
-    }
-
-    /// Borrow the state
-    fn state(&mut self) -> &mut State<S> {
-        self.caller.host_data_mut()
-    }
-
-    /// Borrow the memory
-    fn memory(&mut self) -> &mut [u8] {
-        let memory = unsafe { self.state().memory.assume_init() };
-        memory.data_mut(&mut self.caller)
-    }
 }
 
 impl<S: System> State<S> {
@@ -393,7 +347,7 @@ where
 }
 
 /// Run an Ardaku application.  `exe` must be a .wasm file.
-pub fn run<S>(system: S, exe: &[u8]) -> Result
+pub fn run<S>(system: S, exe: &[u8]) -> EngineResult
 where
     S: System + 'static,
 {
