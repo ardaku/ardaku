@@ -11,7 +11,10 @@ use core::mem::MaybeUninit;
 use log::Level;
 use wasmi::{Caller, Extern, Func, Linker, Memory, Module, Store};
 
-use self::{engine::{Error, Result as EngineResult}, parse::Reader};
+use self::{
+    engine::{Error, Result as EngineResult},
+    parse::Reader,
+};
 
 /// The system should implement these syscalls
 pub trait System {
@@ -24,12 +27,7 @@ pub trait System {
     ///
     /// # Returns
     ///  - Length of overwritten ready list
-    fn sleep(
-        &self,
-        bytes: &mut [u8],
-        data: usize,
-        size: usize,
-    ) -> usize;
+    fn sleep(&self, bytes: &mut [u8], data: usize, size: usize) -> usize;
 
     /// Write a message to the logs.
     ///
@@ -39,31 +37,19 @@ pub trait System {
     ///  - `target`: The log target
     fn log(&self, text: &str, level: Level, target: &str);
 
-    /// Start reading a line of valid UTF-8 to the buffer, not including the
-    /// newline character.
+    /// Spawn task of reading a line of valid UTF-8 to the buffer, not including
+    /// the newline character.
+    ///
+    /// When task is ready, append `ready` to ready list, and if
+    ///  - Capacity big enough: Overwrite buffer and new smaller size
+    ///  - Capacity too small: Overwrite required size, buffer untouched
     ///
     /// # Parameters
     ///  - `ready`: Ready identifier to be written into the ready list when read
     ///  - `data`: Pointer to the bytes in the UTF-8 buffer
-    ///  - `size`: Capacity for number of bytes in UTF-8 buffer
-    ///
-    /// # Returns
-    ///  - `Ok(num_of_bytes_read)`
-    ///  - `Err(num_of_bytes_required)`
-    ///
-    /// # Safety
-    ///  - Undefined behavior if implementation writes invalid UTF-8.
-    ///  - Undefined behavior if bytes written != `Ok(num_of_bytes_read)`
-    fn read_line(
-        &self,
-        ready: u32,
-        data: usize,
-        size: usize,
-    ) -> Result;
+    ///  - `size`: Pointer to the capacity of the UTF-8 buffer (in bytes)
+    fn read_line(&self, ready: u32, data: usize, size: usize);
 }
-
-/// Ardaku I/O Result
-pub type Result = core::result::Result<usize, usize>;
 
 struct State<S: System> {
     memory: MaybeUninit<Memory>,
@@ -142,7 +128,6 @@ fn log<S: System>(system: &mut S, bytes: &mut [u8], size: u32, data: u32) {
     };
 
     log::trace!(target: "ardaku", "Log portal: target={target}");
-
 
     log::trace!(target: "ardaku", "Message (data, size) = ({message_data}, {message_size})");
 
@@ -317,15 +302,15 @@ where
     }
 
     if ready_immediately == 0 {
-            state
-                .system
-                .sleep(
-                    &mut [],
-                    state.ready_list.0.try_into().unwrap(),
-                    state.ready_list.1.try_into().unwrap(),
-                )
-                .try_into()
-                .unwrap()
+        state
+            .system
+            .sleep(
+                &mut [],
+                state.ready_list.0.try_into().unwrap(),
+                state.ready_list.1.try_into().unwrap(),
+            )
+            .try_into()
+            .unwrap()
     } else {
         ready_immediately
     }

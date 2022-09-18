@@ -61,10 +61,9 @@ impl ardaku::System for System {
         ready: u32,
         index: usize,
         length: usize,
-    ) -> ardaku::Result {
+    ) {
         let mut read_line = self.read_line.lock().unwrap();
         *read_line = Some((ready, index, length));
-        Ok(0)
     }
 }
 
