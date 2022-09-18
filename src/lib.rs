@@ -3,6 +3,7 @@
 extern crate alloc;
 
 pub mod engine;
+pub mod parse;
 
 use alloc::vec::Vec;
 use core::mem::MaybeUninit;
@@ -10,29 +11,41 @@ use core::mem::MaybeUninit;
 use log::Level;
 use wasmi::{Caller, Extern, Func, Linker, Memory, Module, Store};
 
-use self::engine::{Error, Result as EngineResult};
+use self::{engine::{Error, Result as EngineResult}, parse::Reader};
 
 /// The system should implement these syscalls
 pub trait System {
     /// Sleep until some event(s) happen.
     ///
-    /// # Returns
-    ///  - Length of ready list
+    /// # Parameters
+    ///  - `bytes`: Slice of bytes of WebAssembly module memory
+    ///  - `data`: Pointer in bytes to ready list
+    ///  - `size`: Capacity for number of `u32`s in ready list
     ///
-    /// # Safety
-    ///  - Undefined behavior if return value != written length of ready list
-    unsafe fn sleep(
+    /// # Returns
+    ///  - Length of overwritten ready list
+    fn sleep(
         &self,
-        memory: &mut [u8],
-        index: usize,
-        length: usize,
+        bytes: &mut [u8],
+        data: usize,
+        size: usize,
     ) -> usize;
 
     /// Write a message to the logs.
+    ///
+    /// # Parameters
+    ///  - `text`: The text to print to the logs
+    ///  - `level`: The log level
+    ///  - `target`: The log target
     fn log(&self, text: &str, level: Level, target: &str);
 
-    /// Read a line of valid UTF-8 to the buffer, not including the newline
-    /// character.
+    /// Start reading a line of valid UTF-8 to the buffer, not including the
+    /// newline character.
+    ///
+    /// # Parameters
+    ///  - `ready`: Ready identifier to be written into the ready list when read
+    ///  - `data`: Pointer to the bytes in the UTF-8 buffer
+    ///  - `size`: Capacity for number of bytes in UTF-8 buffer
     ///
     /// # Returns
     ///  - `Ok(num_of_bytes_read)`
@@ -41,11 +54,11 @@ pub trait System {
     /// # Safety
     ///  - Undefined behavior if implementation writes invalid UTF-8.
     ///  - Undefined behavior if bytes written != `Ok(num_of_bytes_read)`
-    unsafe fn read_line(
+    fn read_line(
         &self,
         ready: u32,
-        index: usize,
-        length: usize,
+        data: usize,
+        size: usize,
     ) -> Result;
 }
 
@@ -101,22 +114,9 @@ enum Portal {
     Max = 5,
 }
 
-#[derive(Debug)]
-struct Log {
-    size: u32,
-    data: u32,
-    target_size: u32,
-    target_data: u32,
-    level: Level,
-}
-
 struct ConnectedChannel<S: System> {
     portal: Portal,
     callback: fn(&mut S, &mut [u8], u32, u32),
-}
-
-fn le_u32(slice: &[u8]) -> u32 {
-    u32::from_le_bytes([slice[0], slice[1], slice[2], slice[3]])
 }
 
 fn fixme<S: System>(_: &mut S, _: &mut [u8], _: u32, _: u32) {
@@ -131,12 +131,11 @@ fn log<S: System>(system: &mut S, bytes: &mut [u8], size: u32, data: u32) {
         todo!("Host trap: command size");
     }
 
-    let log_cmd = &bytes[data..];
-
-    let bites = &log_cmd[..size];
-    log::trace!(target: "ardaku", "Log portal: bytes={bites:?}");
-
-    let target = if let Ok(target) = core::str::from_utf8(&log_cmd[9..size]) {
+    let mut log_cmd = Reader::new(&bytes[data..]);
+    let message_size: usize = log_cmd.u32().try_into().unwrap();
+    let message_data: usize = log_cmd.u32().try_into().unwrap();
+    let log_level = log_cmd.u8();
+    let target = if let Ok(target) = log_cmd.str(size) {
         target
     } else {
         todo!("Host trap: invalid utf8 (target)");
@@ -144,8 +143,6 @@ fn log<S: System>(system: &mut S, bytes: &mut [u8], size: u32, data: u32) {
 
     log::trace!(target: "ardaku", "Log portal: target={target}");
 
-    let message_size: usize = le_u32(&log_cmd[0..]).try_into().unwrap();
-    let message_data: usize = le_u32(&log_cmd[4..]).try_into().unwrap();
 
     log::trace!(target: "ardaku", "Message (data, size) = ({message_data}, {message_size})");
 
@@ -156,7 +153,7 @@ fn log<S: System>(system: &mut S, bytes: &mut [u8], size: u32, data: u32) {
         todo!("Host trap: invalid utf8 (message)");
     };
 
-    let level = match log_cmd[8] {
+    let level = match log_level {
         0 => Level::Trace,
         1 => Level::Debug,
         2 => Level::Info,
@@ -190,29 +187,20 @@ impl<S: System> State<S> {
 
     /// Connect channels
     fn connect(&mut self, bytes: &mut [u8], connect: Connect) {
+        type Callback<S> = fn(&mut S, &mut [u8], u32, u32);
+
         self.ready_list = (connect.ready_capacity, connect.ready_data);
 
         let mut offset: usize = connect.portals_data.try_into().unwrap();
         for _ in 0..connect.portals_size {
-            let portal = le_u32(&bytes[offset..]);
-            let (portal, callback) = match portal {
-                0 => (
-                    Portal::Spawn,
-                    fixme::<S> as fn(&mut S, &mut [u8], u32, u32),
-                ),
-                1 => (
-                    Portal::SpawnBlocking,
-                    fixme::<S> as fn(&mut S, &mut [u8], u32, u32),
-                ),
-                2 => (Portal::Log, log::<S> as fn(&mut S, &mut [u8], u32, u32)),
-                3 => (
-                    Portal::Prompt,
-                    fixme::<S> as fn(&mut S, &mut [u8], u32, u32),
-                ),
-                4 => (
-                    Portal::Channel,
-                    fixme::<S> as fn(&mut S, &mut [u8], u32, u32),
-                ),
+            let mut reader = Reader::new(&bytes[offset..]);
+            let portal = reader.u32();
+            let (portal, callback): (_, Callback<S>) = match portal {
+                0 => (Portal::Spawn, fixme::<S>),
+                1 => (Portal::SpawnBlocking, fixme::<S>),
+                2 => (Portal::Log, log::<S>),
+                3 => (Portal::Prompt, fixme::<S>),
+                4 => (Portal::Channel, fixme::<S>),
                 5..=u32::MAX => todo!("Host trap: invalid portal"),
             };
             self.portals[portal as u32 as usize] = true;
@@ -233,8 +221,7 @@ impl<S: System> State<S> {
             }
             log::trace!(target: "ardaku", "Connect portal: {portal:?} (Ch{channel_id})");
 
-            // Last thing, increase offset
-            offset += 4;
+            offset += core::mem::size_of::<u32>();
         }
     }
 
@@ -244,11 +231,12 @@ impl<S: System> State<S> {
             // FIXME: Trigger a trap if doesn't match
             assert_eq!(command.size, 16);
             let offset: usize = command.data.try_into().unwrap();
+            let mut reader = Reader::new(&bytes[offset..]);
             let connect = Connect {
-                ready_capacity: le_u32(&bytes[offset..]),
-                ready_data: le_u32(&bytes[offset + 4..]),
-                portals_size: le_u32(&bytes[offset + 8..]),
-                portals_data: le_u32(&bytes[offset + 12..]),
+                ready_capacity: reader.u32(),
+                ready_data: reader.u32(),
+                portals_size: reader.u32(),
+                portals_data: reader.u32(),
             };
 
             self.connect(bytes, connect);
@@ -311,26 +299,24 @@ where
 
     log::trace!(target: "ardaku", "Syscall ({size} commands)");
 
-    let data: usize = data.try_into().unwrap();
-
-    let mut offset = data;
+    let mut offset: usize = data.try_into().unwrap();
     let mut ready_immediately = 0;
     for _ in 0..size {
+        let mut reader = Reader::new(&bytes[offset..]);
         let command = Command {
-            ready: le_u32(&bytes[offset..]),
-            channel: le_u32(&bytes[offset + 4..]),
-            size: le_u32(&bytes[offset + 8..]),
-            data: le_u32(&bytes[offset + 12..]),
+            ready: reader.u32(),
+            channel: reader.u32(),
+            size: reader.u32(),
+            data: reader.u32(),
         };
-        offset += 16;
 
         log::trace!(target: "ardaku", "DBG {command:?}");
 
         ready_immediately += u32::from(u8::from(state.execute(bytes, command)));
+        offset += 4 * core::mem::size_of::<u32>();
     }
 
     if ready_immediately == 0 {
-        unsafe {
             state
                 .system
                 .sleep(
@@ -340,7 +326,6 @@ where
                 )
                 .try_into()
                 .unwrap()
-        }
     } else {
         ready_immediately
     }

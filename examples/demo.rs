@@ -14,15 +14,12 @@ struct System {
 // FIXME: Use smelling_salts with whisk channel
 
 impl ardaku::System for System {
-    unsafe fn sleep(
+    fn sleep(
         &self,
-        memory: &mut [u8],
-        index: usize,
-        length: usize,
+        bytes: &mut [u8],
+        ready_data: usize,
+        ready_size: usize,
     ) -> usize {
-        let ready_index = index;
-        let ready_length = length;
-
         let stdin = std::io::stdin();
         let mut handle = stdin.lock();
         let mut buffer = self.buffer.lock().unwrap();
@@ -59,7 +56,7 @@ impl ardaku::System for System {
         log::log!(target: target, level, "{text}")
     }
 
-    unsafe fn read_line(
+    fn read_line(
         &self,
         ready: u32,
         index: usize,
