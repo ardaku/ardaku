@@ -2,11 +2,11 @@
 
 extern crate alloc;
 
-use alloc::{vec::Vec};
+use alloc::vec::Vec;
 use core::mem::MaybeUninit;
-use wasmi::core::Trap;
-use wasmi::{Caller, Extern, Func, Linker, Memory, Module, Store};
+
 use log::Level;
+use wasmi::{core::Trap, Caller, Extern, Func, Linker, Memory, Module, Store};
 
 /// The system should implement these syscalls
 pub trait System {
@@ -17,7 +17,12 @@ pub trait System {
     ///
     /// # Safety
     ///  - Undefined behavior if return value != written length of ready list
-    unsafe fn sleep(&self, memory: &mut [u8], index: usize, length: usize) -> usize;
+    unsafe fn sleep(
+        &self,
+        memory: &mut [u8],
+        index: usize,
+        length: usize,
+    ) -> usize;
 
     /// Write a message to the logs.
     fn log(&self, text: &str, level: Level, target: &str);
@@ -101,7 +106,7 @@ enum Portal {
     Prompt = 3,
     /// MPMC Channel API
     Channel = 4,
-    /// 
+    ///
     Max = 5,
 }
 
@@ -134,7 +139,7 @@ fn log<S: System>(system: &mut S, bytes: &mut [u8], size: u32, data: u32) {
     if size < 9 {
         todo!("Host trap: command size");
     }
-   
+
     let log_cmd = &bytes[data..];
 
     let bites = &log_cmd[..size];
@@ -145,12 +150,12 @@ fn log<S: System>(system: &mut S, bytes: &mut [u8], size: u32, data: u32) {
     } else {
         todo!("Host trap: invalid utf8 (target)");
     };
-            
+
     log::trace!(target: "ardaku", "Log portal: target={target}");
 
     let message_size: usize = le_u32(&log_cmd[0..]).try_into().unwrap();
     let message_data: usize = le_u32(&log_cmd[4..]).try_into().unwrap();
-    
+
     log::trace!(target: "ardaku", "Message (data, size) = ({message_data}, {message_size})");
 
     let message = &bytes[message_data..][..message_size];
@@ -210,7 +215,9 @@ impl<S: System> Internal<'_, S> {
 }
 
 impl<S: System> State<S> {
-    fn bytes_and_state<'a>(caller: &'a mut Caller<'_, Self>) -> (&'a mut [u8], &'a mut State<S>) {
+    fn bytes_and_state<'a>(
+        caller: &'a mut Caller<'_, Self>,
+    ) -> (&'a mut [u8], &'a mut State<S>) {
         let state = caller.host_data_mut();
         let memory = unsafe { state.memory.assume_init() };
         memory.data_and_store_mut(caller)
@@ -230,28 +237,48 @@ impl<S: System> State<S> {
     /// Connect channels
     fn connect(&mut self, bytes: &mut [u8], connect: Connect) {
         self.ready_list = (connect.ready_capacity, connect.ready_data);
-       
+
         let mut offset: usize = connect.portals_data.try_into().unwrap();
         for _ in 0..connect.portals_size {
             let portal = le_u32(&bytes[offset..]);
             let (portal, callback) = match portal {
-                0 => (Portal::Spawn, fixme::<S> as fn(&mut S, &mut [u8], u32, u32)),
-                1 => (Portal::SpawnBlocking, fixme::<S> as fn(&mut S, &mut [u8], u32, u32)),
+                0 => (
+                    Portal::Spawn,
+                    fixme::<S> as fn(&mut S, &mut [u8], u32, u32),
+                ),
+                1 => (
+                    Portal::SpawnBlocking,
+                    fixme::<S> as fn(&mut S, &mut [u8], u32, u32),
+                ),
                 2 => (Portal::Log, log::<S> as fn(&mut S, &mut [u8], u32, u32)),
-                3 => (Portal::Prompt, fixme::<S> as fn(&mut S, &mut [u8], u32, u32)),
-                4 => (Portal::Channel, fixme::<S> as fn(&mut S, &mut [u8], u32, u32)),
+                3 => (
+                    Portal::Prompt,
+                    fixme::<S> as fn(&mut S, &mut [u8], u32, u32),
+                ),
+                4 => (
+                    Portal::Channel,
+                    fixme::<S> as fn(&mut S, &mut [u8], u32, u32),
+                ),
                 5..=u32::MAX => todo!("Host trap: invalid portal"),
             };
             self.portals[portal as u32 as usize] = true;
             let channel_id = self.channel();
-            self.conn_channels.resize_with(usize::try_from(self.next_channel).unwrap(), || None);
-            self.conn_channels[usize::try_from(channel_id).unwrap()] = Some(ConnectedChannel { portal, callback });
-            
-            for (src, dst) in channel_id.to_le_bytes().into_iter().zip(bytes[offset..].iter_mut()) {
+            self.conn_channels.resize_with(
+                usize::try_from(self.next_channel).unwrap(),
+                || None,
+            );
+            self.conn_channels[usize::try_from(channel_id).unwrap()] =
+                Some(ConnectedChannel { portal, callback });
+
+            for (src, dst) in channel_id
+                .to_le_bytes()
+                .into_iter()
+                .zip(bytes[offset..].iter_mut())
+            {
                 *dst = src;
             }
             log::trace!(target: "ardaku", "Connect portal: {portal:?} (Ch{channel_id})");
-            
+
             // Last thing, increase offset
             offset += 4;
         }
@@ -265,23 +292,30 @@ impl<S: System> State<S> {
             let offset: usize = command.data.try_into().unwrap();
             let connect = Connect {
                 ready_capacity: le_u32(&bytes[offset..]),
-                ready_data: le_u32(&bytes[offset+4..]),
-                portals_size: le_u32(&bytes[offset+8..]),
-                portals_data: le_u32(&bytes[offset+12..]),
+                ready_data: le_u32(&bytes[offset + 4..]),
+                portals_size: le_u32(&bytes[offset + 8..]),
+                portals_data: le_u32(&bytes[offset + 12..]),
             };
 
             self.connect(bytes, connect);
             true
         } else {
-            let Command { channel, size, data, ready } = command;
+            let Command {
+                channel,
+                size,
+                data,
+                ready,
+            } = command;
             let len = self.conn_channels.len();
             log::trace!(target: "ardaku", "Ch{channel}: {len:?}");
-            let (portal, callback) = if let Some(ref cc) = self.conn_channels[usize::try_from(channel).unwrap()] {
+            let (portal, callback) = if let Some(ref cc) =
+                self.conn_channels[usize::try_from(channel).unwrap()]
+            {
                 (cc.portal, cc.callback)
             } else {
                 todo!("Host trap: invalid channel");
             };
-            
+
             if !self.portals[portal as usize] {
                 todo!("Host trap: unsupported portal");
             }
@@ -305,7 +339,11 @@ where
     S: System + 'static,
 {
     let (bytes, _state) = State::bytes_and_state(&mut caller);
-    let string = core::str::from_utf8(&bytes[usize::try_from(text).unwrap()..][..usize::try_from(size).unwrap()]).expect("daku debug failure");
+    let string = core::str::from_utf8(
+        &bytes[usize::try_from(text).unwrap()..]
+            [..usize::try_from(size).unwrap()],
+    )
+    .expect("daku debug failure");
 
     log::trace!(target: "daku-dbg", "{string}");
 }
@@ -326,9 +364,9 @@ where
     for _ in 0..size {
         let command = Command {
             ready: le_u32(&bytes[offset..]),
-            channel: le_u32(&bytes[offset+4..]),
-            size: le_u32(&bytes[offset+8..]),
-            data: le_u32(&bytes[offset+12..]),
+            channel: le_u32(&bytes[offset + 4..]),
+            size: le_u32(&bytes[offset + 8..]),
+            data: le_u32(&bytes[offset + 12..]),
         };
         offset += 16;
 
@@ -339,7 +377,15 @@ where
 
     if ready_immediately == 0 {
         unsafe {
-            state.system.sleep(&mut [], state.ready_list.0.try_into().unwrap(), state.ready_list.1.try_into().unwrap()).try_into().unwrap()
+            state
+                .system
+                .sleep(
+                    &mut [],
+                    state.ready_list.0.try_into().unwrap(),
+                    state.ready_list.1.try_into().unwrap(),
+                )
+                .try_into()
+                .unwrap()
         }
     } else {
         ready_immediately
