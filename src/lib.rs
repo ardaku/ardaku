@@ -359,7 +359,7 @@ where
         .get_export(&store, "run")
         .and_then(Extern::into_func)
         .ok_or(Error::MissingRun)?
-        .typed::<(), (), _>(&mut store)
+        .typed::<(), ()>(&mut store)
         .map_err(|_| Error::MissingRun)?;
 
     // And finally we can call the wasm!
