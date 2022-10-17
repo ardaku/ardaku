@@ -117,11 +117,11 @@ fn log<S: System>(system: &mut S, bytes: &mut [u8], size: u32, data: u32) {
         todo!("Host trap: command size");
     }
 
-    let mut log_cmd = Reader::new(&bytes[data..]);
+    let mut log_cmd = Reader::new(&bytes[data..][..size]);
     let message_size: usize = log_cmd.u32().try_into().unwrap();
     let message_data: usize = log_cmd.u32().try_into().unwrap();
     let log_level = log_cmd.u8();
-    let target = if let Ok(target) = log_cmd.str(size) {
+    let target = if let Ok(target) = log_cmd.str() {
         target
     } else {
         todo!("Host trap: invalid utf8 (target)");

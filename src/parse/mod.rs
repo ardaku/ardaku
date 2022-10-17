@@ -79,9 +79,9 @@ impl<'a> Reader<'a> {
     }
 
     /// Receive a UTF-8 string from the WASM module
-    pub fn str(&mut self, len: usize) -> Result<&str, core::str::Utf8Error> {
-        let bytes = self.0.get(0..len).expect("Out of bounds read");
-        self.0 = &self.0[len..];
+    pub fn str(&mut self) -> Result<&str, core::str::Utf8Error> {
+        let bytes = self.0.get(0..).expect("Out of bounds read");
+        self.0 = &[];
         core::str::from_utf8(bytes)
     }
 }
