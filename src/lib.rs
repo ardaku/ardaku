@@ -46,7 +46,7 @@ pub trait System {
     ///
     /// # Parameters
     ///  - `ready`: Ready identifier to be written into the ready list when read
-    ///  - `data`: Pointer to the bytes in the UTF-8 buffer
+    ///  - `data`: Pointer to the UTF-8 buffer (`size: u32`, `reference: u32`)
     ///  - `size`: Pointer to the capacity of the UTF-8 buffer (in bytes)
     fn read_line(&self, ready: u32, data: usize, size: usize);
 }
@@ -102,14 +102,33 @@ enum Portal {
 
 struct ConnectedChannel<S: System> {
     portal: Portal,
-    callback: fn(&mut S, &mut [u8], u32, u32),
+    callback: fn(&mut S, u32, &mut [u8], u32, u32) -> bool,
 }
 
-fn fixme<S: System>(_: &mut S, _: &mut [u8], _: u32, _: u32) {
+fn fixme<S: System>(_: &mut S, _: u32, _: &mut [u8], _: u32, _: u32) -> bool {
     log::error!(target: "ardaku", "FIXME");
+
+    true
 }
 
-fn log<S: System>(system: &mut S, bytes: &mut [u8], size: u32, data: u32) {
+fn prompt<S: System>(system: &mut S, ready: u32, bytes: &mut [u8], size: u32, data: u32) -> bool {
+    let size: usize = size.try_into().unwrap();
+    let data: usize = data.try_into().unwrap();
+
+    if size != 8 {
+        todo!("Host trap: command size");
+    }
+
+    let mut prompt_cmd = Reader::new(&bytes[data..][..size]);
+    let text_ref: usize = prompt_cmd.u32().try_into().unwrap();
+    let capacity_ref: usize = prompt_cmd.u32().try_into().unwrap();
+
+    system.read_line(ready, text_ref, capacity_ref);
+
+    false
+}
+
+fn log<S: System>(system: &mut S, _ready: u32, bytes: &mut [u8], size: u32, data: u32) -> bool {
     let size: usize = size.try_into().unwrap();
     let data: usize = data.try_into().unwrap();
 
@@ -148,6 +167,8 @@ fn log<S: System>(system: &mut S, bytes: &mut [u8], size: u32, data: u32) {
     };
 
     system.log(message, level, target);
+
+    true
 }
 
 impl<S: System> State<S> {
@@ -172,7 +193,7 @@ impl<S: System> State<S> {
 
     /// Connect channels
     fn connect(&mut self, bytes: &mut [u8], connect: Connect) {
-        type Callback<S> = fn(&mut S, &mut [u8], u32, u32);
+        type Callback<S> = fn(&mut S, u32, &mut [u8], u32, u32) -> bool;
 
         self.ready_list = (connect.ready_capacity, connect.ready_data);
 
@@ -184,7 +205,7 @@ impl<S: System> State<S> {
                 0 => (Portal::Spawn, fixme::<S>),
                 1 => (Portal::SpawnBlocking, fixme::<S>),
                 2 => (Portal::Log, log::<S>),
-                3 => (Portal::Prompt, fixme::<S>),
+                3 => (Portal::Prompt, prompt::<S>),
                 4 => (Portal::Channel, fixme::<S>),
                 5..=u32::MAX => todo!("Host trap: invalid portal"),
             };
@@ -249,9 +270,7 @@ impl<S: System> State<S> {
 
             log::trace!(target: "ardaku", "Ch{channel}: {portal:?}");
 
-            callback(&mut self.system, bytes, size, data);
-
-            true // Ready immediately
+            callback(&mut self.system, ready, bytes, size, data)
 
             /*let current_pages = unsafe {
                 mem.current_pages(&mut *caller).0

@@ -7,7 +7,6 @@ use std::{
 use log::Level;
 
 struct System {
-    buffer: Mutex<String>,
     read_line: Mutex<Option<(u32, usize, usize)>>,
 }
 
@@ -20,35 +19,39 @@ impl ardaku::System for System {
         ready_data: usize,
         ready_size: usize,
     ) -> usize {
+        log::debug!(target: "demo", "sleep");
+
         let stdin = std::io::stdin();
         let mut handle = stdin.lock();
-        let mut buffer = self.buffer.lock().unwrap();
-        handle.read_line(&mut buffer).unwrap();
-        let mut _read_line = self.read_line.lock().unwrap();
-        /*if let Some((read_line, index, length)) = read_line.take() {
-            if memory.get_mut(ready_index..ready_length).map(|x| x.len())
-                == Some(4)
+        let mut buffer = String::with_capacity(1024);
+        loop {
+            handle.read_line(&mut buffer).unwrap();
+            let (ready, text, capacity) = self.read_line.lock().unwrap().unwrap();
+            let mut reader = ardaku::parse::Reader::new(&bytes[text..]);
+            let size = usize::try_from(reader.u32()).unwrap();
+            let addr = usize::try_from(reader.u32()).unwrap();
+           
+            // Write size to memory
+            let size = {
+                let mut writer = ardaku::parse::Writer::new(&mut bytes[size..]);
+                let size = buffer.len().min(capacity).try_into().unwrap();
+                writer.u32(size);
+                usize::try_from(size).unwrap()
+            };
+
+            // Write read line to memory
             {
-                if let Some(buf) = memory.get_mut(index..length) {
-                    // Write to readline buffer
-                    let capacity = buf[0..].len();
-                    let length = buffer.len();
-                    /*if length > capacity {
-                        // Need more space!
-
-                    } else {
-
-                    }*/
-                    todo!();
-                    // Write to ready list
-                    /*let bytes = read_line.to_le_bytes();
-                    for i in 0..4 {
-                        ready[i] = bytes[i];
-                    }
-                    return 1*/
-                }
+                let buf = &mut bytes[addr..][..size];
+                buf.copy_from_slice(buffer.as_bytes());
             }
-        }*/
+
+            // Add to ready list
+            {
+                let ready_list = &mut bytes[ready_data..][..ready_size];
+                let mut writer = ardaku::parse::Writer::new(ready_list);
+                writer.u32(ready);
+            }
+        }
         0
     }
 
@@ -67,7 +70,7 @@ impl ardaku::System for System {
     }
 }
 
-fn main() -> ardaku::engine::Result<()> {
+fn main() -> ardaku::engine::Result {
     // Setup
     env_logger::init();
 
@@ -76,7 +79,6 @@ fn main() -> ardaku::engine::Result<()> {
 
     // Run app
     let system = System {
-        buffer: Mutex::new(String::with_capacity(1024)),
         read_line: Mutex::new(None),
     };
 
