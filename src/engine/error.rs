@@ -3,7 +3,7 @@
 use wasmi::core::Trap;
 
 /// WebAssembly Engine Result
-pub type Result<T = ()> = core::result::Result<T, Error>;
+pub type Result<T = (), E = Error> = core::result::Result<T, E>;
 
 /// WebAssembly Engine Error
 #[derive(Debug)]

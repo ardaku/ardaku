@@ -1,7 +1,6 @@
 use std::{
-    io::{self, BufRead, Write},
+    io::{BufRead},
     sync::Mutex,
-    task::Poll,
 };
 
 use log::Level;
@@ -24,7 +23,9 @@ impl ardaku::System for System {
         let stdin = std::io::stdin();
         let mut handle = stdin.lock();
         let mut buffer = String::with_capacity(1024);
-        loop {
+    
+        // Blocking (FIXME) line reading, returns 1 ready event
+        {
             handle.read_line(&mut buffer).unwrap();
             let (ready, text, capacity) = self.read_line.lock().unwrap().unwrap();
             let mut reader = ardaku::parse::Reader::new(&bytes[text..]);
@@ -47,12 +48,13 @@ impl ardaku::System for System {
 
             // Add to ready list
             {
-                let ready_list = &mut bytes[ready_data..][..ready_size];
+                let ready_list = &mut bytes[ready_data..][..ready_size * 4];
                 let mut writer = ardaku::parse::Writer::new(ready_list);
                 writer.u32(ready);
             }
+
+            1
         }
-        0
     }
 
     fn log(&self, text: &str, level: Level, target: &str) {

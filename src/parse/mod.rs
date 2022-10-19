@@ -10,34 +10,59 @@ impl<'a> Writer<'a> {
     }
 
     /// Send a u8 to the WASM module
-    pub fn u8(&'a mut self, byte: u8) { // not sure why this lifetime req'd?
+    pub fn u8(&mut self, byte: u8) {
         self.0[..1].copy_from_slice(&byte.to_le_bytes());
-        self.0 = &mut self.0[1..];
+
+        // Hack around lifetime issues
+        let mut swap: &'a mut [u8] = &mut [];
+        core::mem::swap(&mut self.0, &mut swap);
+        let mut swap = swap.split_at_mut(1).1;
+        core::mem::swap(&mut self.0, &mut swap);
     }
     
     /// Send a u16 to the WASM module
-    pub fn u16(&'a mut self, half: u16) { // not sure why this lifetime req'd?
+    pub fn u16(&mut self, half: u16) {
         self.0[..2].copy_from_slice(&half.to_le_bytes());
-        self.0 = &mut self.0[2..];
+
+        // Hack around lifetime issues
+        let mut swap: &'a mut [u8] = &mut [];
+        core::mem::swap(&mut self.0, &mut swap);
+        let mut swap = swap.split_at_mut(2).1;
+        core::mem::swap(&mut self.0, &mut swap);
     }
 
     /// Send a u32 to the WASM module
-    pub fn u32(&'a mut self, word: u32) { // not sure why this lifetime req'd?
+    pub fn u32(&mut self, word: u32) {
         self.0[..4].copy_from_slice(&word.to_le_bytes());
-        self.0 = &mut self.0[4..];
+
+        // Hack around lifetime issues
+        let mut swap: &'a mut [u8] = &mut [];
+        core::mem::swap(&mut self.0, &mut swap);
+        let mut swap = swap.split_at_mut(4).1;
+        core::mem::swap(&mut self.0, &mut swap);
     }
 
     /// Send a u64 to the WASM module
-    pub fn u64(&'a mut self, long: u64) { // not sure why this lifetime req'd?
+    pub fn u64(&mut self, long: u64) {
         self.0[..8].copy_from_slice(&long.to_le_bytes());
-        self.0 = &mut self.0[8..];
+
+        // Hack around lifetime issues
+        let mut swap: &'a mut [u8] = &mut [];
+        core::mem::swap(&mut self.0, &mut swap);
+        let mut swap = swap.split_at_mut(8).1;
+        core::mem::swap(&mut self.0, &mut swap);
     }
 
     /// Send a UTF-8 string to the WASM module
-    pub fn str(&'a mut self, utf8: &str) { // not sure why this lifetime req'd?
+    pub fn str(&mut self, utf8: &str) {
         let len = utf8.len();
         self.0[..len].copy_from_slice(&utf8.as_bytes());
-        self.0 = &mut self.0[len..];
+
+        // Hack around lifetime issues
+        let mut swap: &'a mut [u8] = &mut [];
+        core::mem::swap(&mut self.0, &mut swap);
+        let mut swap = swap.split_at_mut(len).1;
+        core::mem::swap(&mut self.0, &mut swap);
     }
 }
 

@@ -13,7 +13,7 @@ use wasmi::{Caller, Extern, Func, Linker, Memory, Module, Store};
 
 use self::{
     engine::{Error, Result as EngineResult},
-    parse::Reader,
+    parse::{Writer, Reader},
 };
 
 /// The system should implement these syscalls
@@ -86,18 +86,32 @@ struct Connect {
 #[repr(u32)]
 #[derive(Debug, Copy, Clone)]
 enum Portal {
-    /// Task spawning API
-    Spawn = 0,
-    /// Blocking task spawning API
-    SpawnBlocking = 1,
     /// Logging API (stdout/printf)
-    Log = 2,
+    Log = 0,
     /// Developer command API (stdin/scanf)
-    Prompt = 3,
+    Prompt = 1,
+    /// Set user information API (username, display name)
+    Account = 2,
+    /// Get user information API (username, display name)
+    User = 3,
+    /// Set system information API (system nickname, hostname)
+    System = 4,
+    /// Get system information API (system nickname, hostname)
+    Host = 5,
+    /// Set hardware features API (overclock, hardware time)
+    Hardware = 6,
+    /// Get hardware features API (cpu / gpu specs)
+    Platform = 7,
+    /// Task spawning API
+    Spawn = 8,
+    /// Blocking task spawning API
+    SpawnBlocking = 9,
     /// MPMC Channel API
-    Channel = 4,
+    Channel = 10,
+    /// Account API (create / delete users)
+    Admin = 11,
     ///
-    Max = 5,
+    Max,
 }
 
 struct ConnectedChannel<S: System> {
@@ -202,12 +216,19 @@ impl<S: System> State<S> {
             let mut reader = Reader::new(&bytes[offset..]);
             let portal = reader.u32();
             let (portal, callback): (_, Callback<S>) = match portal {
-                0 => (Portal::Spawn, fixme::<S>),
-                1 => (Portal::SpawnBlocking, fixme::<S>),
-                2 => (Portal::Log, log::<S>),
-                3 => (Portal::Prompt, prompt::<S>),
-                4 => (Portal::Channel, fixme::<S>),
-                5..=u32::MAX => todo!("Host trap: invalid portal"),
+                0 => (Portal::Log, log::<S>),
+                1 => (Portal::Prompt, prompt::<S>),
+                2 => (Portal::Account, prompt::<S>),
+                3 => (Portal::User, prompt::<S>),
+                4 => (Portal::System, prompt::<S>),
+                5 => (Portal::Host, prompt::<S>),
+                6 => (Portal::Hardware, prompt::<S>),
+                7 => (Portal::Platform, prompt::<S>),
+                8 => (Portal::Spawn, fixme::<S>),
+                9 => (Portal::SpawnBlocking, fixme::<S>),
+                10 => (Portal::Channel, fixme::<S>),
+                11 => (Portal::Admin, fixme::<S>),
+                12.. => todo!("Host trap: invalid portal"),
             };
             self.portals[portal as u32 as usize] = true;
             let channel_id = self.channel();
@@ -320,17 +341,24 @@ where
         offset += 4 * core::mem::size_of::<u32>();
     }
 
+    let ready_size = state.ready_list.0.try_into().unwrap();
+    let ready_data = state.ready_list.1.try_into().unwrap();
+    
+    log::trace!(target: "ardaku", "Ready ({ready_immediately})");
+
     if ready_immediately == 0 {
         state
             .system
-            .sleep(
-                &mut [],
-                state.ready_list.0.try_into().unwrap(),
-                state.ready_list.1.try_into().unwrap(),
-            )
+            .sleep(&mut [], ready_size, ready_data)
             .try_into()
             .unwrap()
     } else {
+        let ready_list = &mut bytes[ready_data..][..ready_size * 4];
+        let mut writer = Writer::new(ready_list);
+        for _ in 0..ready_size {
+            writer.u32(u32::MAX);
+        }
+
         ready_immediately
     }
 }
