@@ -19,7 +19,7 @@ impl<'a> Writer<'a> {
         let mut swap = swap.split_at_mut(1).1;
         core::mem::swap(&mut self.0, &mut swap);
     }
-    
+
     /// Send a u16 to the WASM module
     pub fn u16(&mut self, half: u16) {
         self.0[..2].copy_from_slice(&half.to_le_bytes());

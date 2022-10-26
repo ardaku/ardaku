@@ -13,7 +13,7 @@ use wasmi::{Caller, Extern, Func, Linker, Memory, Module, Store};
 
 use self::{
     engine::{Error, Result as EngineResult},
-    parse::{Writer, Reader},
+    parse::{Reader, Writer},
 };
 
 /// The system should implement these syscalls
@@ -22,12 +22,12 @@ pub trait System {
     ///
     /// # Parameters
     ///  - `bytes`: Slice of bytes of WebAssembly module memory
-    ///  - `data`: Pointer in bytes to ready list
     ///  - `size`: Capacity for number of `u32`s in ready list
+    ///  - `data`: Pointer in bytes to ready list
     ///
     /// # Returns
     ///  - Length of overwritten ready list
-    fn sleep(&self, bytes: &mut [u8], data: usize, size: usize) -> usize;
+    fn sleep(&self, bytes: &mut [u8], size: usize, data: usize) -> usize;
 
     /// Write a message to the logs.
     ///
@@ -125,7 +125,13 @@ fn fixme<S: System>(_: &mut S, _: u32, _: &mut [u8], _: u32, _: u32) -> bool {
     true
 }
 
-fn prompt<S: System>(system: &mut S, ready: u32, bytes: &mut [u8], size: u32, data: u32) -> bool {
+fn prompt<S: System>(
+    system: &mut S,
+    ready: u32,
+    bytes: &mut [u8],
+    size: u32,
+    data: u32,
+) -> bool {
     let size: usize = size.try_into().unwrap();
     let data: usize = data.try_into().unwrap();
 
@@ -142,7 +148,13 @@ fn prompt<S: System>(system: &mut S, ready: u32, bytes: &mut [u8], size: u32, da
     false
 }
 
-fn log<S: System>(system: &mut S, _ready: u32, bytes: &mut [u8], size: u32, data: u32) -> bool {
+fn log<S: System>(
+    system: &mut S,
+    _ready: u32,
+    bytes: &mut [u8],
+    size: u32,
+    data: u32,
+) -> bool {
     let size: usize = size.try_into().unwrap();
     let data: usize = data.try_into().unwrap();
 
@@ -208,6 +220,10 @@ impl<S: System> State<S> {
     /// Connect channels
     fn connect(&mut self, bytes: &mut [u8], connect: Connect) {
         type Callback<S> = fn(&mut S, u32, &mut [u8], u32, u32) -> bool;
+
+        let cap = connect.ready_capacity;
+        let ptr = connect.ready_data;
+        log::trace!(target: "ardaku", "KONEKCYN: {cap} {ptr:x}");
 
         self.ready_list = (connect.ready_capacity, connect.ready_data);
 
@@ -343,13 +359,13 @@ where
 
     let ready_size = state.ready_list.0.try_into().unwrap();
     let ready_data = state.ready_list.1.try_into().unwrap();
-    
+
     log::trace!(target: "ardaku", "Ready ({ready_immediately})");
 
     if ready_immediately == 0 {
         state
             .system
-            .sleep(&mut [], ready_size, ready_data)
+            .sleep(bytes, ready_size, ready_data)
             .try_into()
             .unwrap()
     } else {
