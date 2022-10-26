@@ -13,13 +13,13 @@ async fn main() {
 
 #[no_mangle]
 extern "C" fn run() {
-    let hook = std::panic::take_hook();
-    std::panic::set_hook(Box::new(move |p| {
-        hook(p);
-        log::error!("Panic: {:?}", p.to_string());
+    fn panic(panic_info: &std::panic::PanicInfo) {
+        log::error!("Panic: {panic_info}");
         log::logger().flush();
         unreachable!();
-    }));
+    }
+
+    std::panic::set_hook(Box::new(panic));
 
     daku::run::block_on(main());
 }
