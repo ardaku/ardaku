@@ -308,11 +308,6 @@ impl<S: System> State<S> {
             log::trace!(target: "ardaku", "Ch{channel}: {portal:?}");
 
             callback(&mut self.system, ready, bytes, size, data)
-
-            /*let current_pages = unsafe {
-                mem.current_pages(&mut *caller).0
-            };
-            todo!("pages: {current_pages}");*/
         }
     }
 }
@@ -427,6 +422,15 @@ where
 
     // And finally we can call the wasm!
     run.call(&mut store, ()).map_err(Error::Crash)?;
+
+    //
+
+    let current_pages = unsafe {
+        store.state_mut().memory.assume_init().current_pages(&mut store).0
+    };
+
+    log::info!(target: "ardaku", "Pages allocated at exit: {current_pages}");
+    log::info!(target: "ardaku", " - As kB: {}", current_pages * 64);
 
     Ok(())
 }
