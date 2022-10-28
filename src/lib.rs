@@ -158,15 +158,21 @@ fn log<S: System>(
     let size: usize = size.try_into().unwrap();
     let data: usize = data.try_into().unwrap();
 
-    if size < 9 {
+    if size != 16 {
         todo!("Host trap: command size");
     }
 
     let mut log_cmd = Reader::new(&bytes[data..][..size]);
+    let target_size: usize = log_cmd.u32().try_into().unwrap();
+    let target_data: usize = log_cmd.u32().try_into().unwrap();
     let message_size: usize = log_cmd.u32().try_into().unwrap();
     let message_data: usize = log_cmd.u32().try_into().unwrap();
-    let log_level = log_cmd.u8();
-    let target = if let Ok(target) = log_cmd.str() {
+    let log_level = target_size >> 29;
+    let target_size = target_size & 0xFF;
+
+    log::trace!(target: "ardaku", "Message (data, size) = ({target_data}, {target_size})");
+    let target = &bytes[target_data..][..target_size];
+    let target = if let Ok(target) = core::str::from_utf8(target) {
         target
     } else {
         todo!("Host trap: invalid utf8 (target)");
@@ -189,6 +195,7 @@ fn log<S: System>(
         2 => Level::Info,
         3 => Level::Warn,
         4 => Level::Error,
+        5 => todo!("Host trap: custom trap"),
         _ => todo!("Host trap: invalid log level"),
     };
 
@@ -426,7 +433,12 @@ where
     //
 
     let current_pages = unsafe {
-        store.state_mut().memory.assume_init().current_pages(&mut store).0
+        store
+            .state_mut()
+            .memory
+            .assume_init()
+            .current_pages(&mut store)
+            .0
     };
 
     log::info!(target: "ardaku", "Pages allocated at exit: {current_pages}");

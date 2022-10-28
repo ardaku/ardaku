@@ -56,7 +56,7 @@ impl<'a> Writer<'a> {
     /// Send a UTF-8 string to the WASM module
     pub fn str(&mut self, utf8: &str) {
         let len = utf8.len();
-        self.0[..len].copy_from_slice(&utf8.as_bytes());
+        self.0[..len].copy_from_slice(utf8.as_bytes());
 
         // Hack around lifetime issues
         let mut swap: &'a mut [u8] = &mut [];

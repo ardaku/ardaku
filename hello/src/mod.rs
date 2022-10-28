@@ -2,7 +2,7 @@ use daku::api::{self, prompt};
 use log::Level;
 
 async fn main() {
-    api::log::init(Level::Debug).await;
+    api::log::init(Level::Debug);
     log::info!("Wait a minute...");
     log::info!("What is your name?");
 

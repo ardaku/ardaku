@@ -13,3 +13,6 @@ version = "0.4"
 [dependencies.daku]
 version = "0.3"
 features = ["log", "prompt"]
+
+[patch.crates-io]
+daku = { path = "../../daku/" }
