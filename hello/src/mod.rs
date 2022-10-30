@@ -13,6 +13,8 @@ async fn main() {
 
 #[no_mangle]
 extern "C" fn run() {
+    // Uncomment if you want panic info for debugging
+    /*
     fn panic(panic_info: &std::panic::PanicInfo) {
         log::error!("Panic: {panic_info}");
         log::logger().flush();
@@ -20,6 +22,7 @@ extern "C" fn run() {
     }
 
     std::panic::set_hook(Box::new(panic));
+    */
 
     daku::run::block_on(main());
 }

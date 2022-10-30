@@ -16,3 +16,9 @@ features = ["log", "prompt"]
 
 [patch.crates-io]
 daku = { path = "../../daku/" }
+
+[profile.release]
+panic = "abort"
+opt-level = 's'
+lto = true
+debug = true
