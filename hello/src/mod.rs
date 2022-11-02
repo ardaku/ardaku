@@ -1,6 +1,9 @@
 use daku::api::{self, prompt};
 use log::Level;
 
+#[global_allocator]
+static _GA: lol_alloc::FreeListAllocator = lol_alloc::FreeListAllocator::new();
+
 async fn main() {
     api::log::init(Level::Debug);
     log::info!("Wait a minute...");
