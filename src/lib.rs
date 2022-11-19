@@ -438,7 +438,9 @@ where
             .memory
             .assume_init()
             .current_pages(&mut store)
-            .0
+            .to_bytes()
+            .unwrap()
+            / 65_536
     };
 
     log::info!(target: "ardaku", "Pages allocated at exit: {current_pages}");
