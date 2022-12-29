@@ -11,7 +11,7 @@ path = "src/mod.rs"
 version = "0.4"
 
 [dependencies.daku]
-version = "0.3"
+version = "0.4"
 features = ["log", "prompt"]
 
 [dependencies.lol_alloc]
