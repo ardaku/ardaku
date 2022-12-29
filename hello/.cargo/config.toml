@@ -1,5 +1,5 @@
 [build]
 rustflags = [
   "--cfg", "target_os=\"daku\"",
-  "-C", "link-args=-zstack-size=65536",
+  "-C", "link-args=-zstack-size=32768",
 ]

@@ -12,11 +12,21 @@ cd hello/
 ./build.sh
 ```
 
-This will create a *hello.wasm* file.  You can now run it locally with:
+This will create a *hello.wasm* file (~10kB).  You can now run it locally with:
 
 ```bash
 RUST_LOG=info cargo run --release --example demo hello/hello.wasm
 ```
+
+Rust WebAssembly programs that use an allocator will always allocate at least 2
+pages; this example is configured to allocate only 2:
+
+ 0. Stack (configured via rustc flags to only take up ½ page - default: 16), the
+    remaining ½ page is used for the WebAssembly data section
+ 1. Heap allocated memory
+
+Together this adds up to 128 kB (131\_072 bytes) for the minimum runtime memory
+required by a WASM file in Ardaku.
 
 ## API
 Ardaku runs the [`daku`](https://github.com/ardaku/daku) API.  You can build
