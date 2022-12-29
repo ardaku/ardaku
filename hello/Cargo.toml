@@ -11,14 +11,14 @@ path = "src/mod.rs"
 version = "0.4"
 
 [dependencies.daku]
-version = "0.4"
+version = "0.5"
 features = ["log", "prompt"]
 
 [dependencies.lol_alloc]
 version = "0.3"
 
 [patch.crates-io]
-daku = { path = "../../daku/" }
+# daku = { path = "../../daku/" }
 
 [profile.release]
 panic = "abort"
