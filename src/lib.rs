@@ -208,7 +208,7 @@ impl<S: System> State<S> {
     fn bytes_and_state<'a>(
         caller: &'a mut Caller<'_, Self>,
     ) -> (&'a mut [u8], &'a mut State<S>) {
-        let state = caller.host_data_mut();
+        let state = caller.data_mut();
         let memory = unsafe { state.memory.assume_init() };
         memory.data_and_store_mut(caller)
     }
@@ -418,7 +418,7 @@ where
         .ok_or(Error::MissingMemory)?
         .into_memory()
         .ok_or(Error::MissingMemory)?;
-    store.state_mut().memory = MaybeUninit::new(memory);
+    store.data_mut().memory = MaybeUninit::new(memory);
 
     let run = instance
         .get_export(&store, "run")
@@ -434,7 +434,7 @@ where
 
     let current_pages = unsafe {
         store
-            .state_mut()
+            .data_mut()
             .memory
             .assume_init()
             .current_pages(&mut store)
