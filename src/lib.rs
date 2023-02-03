@@ -67,19 +67,19 @@ struct State<S: System> {
 /// Command
 #[derive(Debug)]
 struct Command {
-    ready: u32,
-    channel: u32,
     size: u32,
     data: u32,
+    channel: u32,
+    ready: u32,
 }
 
 /// Connect
 #[derive(Debug)]
 struct Connect {
-    ready_capacity: u32,
-    ready_data: u32,
     portals_size: u32,
     portals_data: u32,
+    ready_capacity: u32,
+    ready_data: u32,
 }
 
 /// Portal IDs
@@ -241,12 +241,12 @@ impl<S: System> State<S> {
             let (portal, callback): (_, Callback<S>) = match portal {
                 0 => (Portal::Log, log::<S>),
                 1 => (Portal::Prompt, prompt::<S>),
-                2 => (Portal::Account, prompt::<S>),
-                3 => (Portal::User, prompt::<S>),
-                4 => (Portal::System, prompt::<S>),
-                5 => (Portal::Host, prompt::<S>),
-                6 => (Portal::Hardware, prompt::<S>),
-                7 => (Portal::Platform, prompt::<S>),
+                2 => (Portal::Account, fixme::<S>),
+                3 => (Portal::User, fixme::<S>),
+                4 => (Portal::System, fixme::<S>),
+                5 => (Portal::Host, fixme::<S>),
+                6 => (Portal::Hardware, fixme::<S>),
+                7 => (Portal::Platform, fixme::<S>),
                 8 => (Portal::Spawn, fixme::<S>),
                 9 => (Portal::SpawnBlocking, fixme::<S>),
                 10 => (Portal::Channel, fixme::<S>),
@@ -283,10 +283,10 @@ impl<S: System> State<S> {
             let offset: usize = command.data.try_into().unwrap();
             let mut reader = Reader::new(&bytes[offset..]);
             let connect = Connect {
-                ready_capacity: reader.u32(),
-                ready_data: reader.u32(),
                 portals_size: reader.u32(),
                 portals_data: reader.u32(),
+                ready_capacity: reader.u32(),
+                ready_data: reader.u32(),
             };
 
             self.connect(bytes, connect);
@@ -347,10 +347,10 @@ where
     for _ in 0..size {
         let mut reader = Reader::new(&bytes[offset..]);
         let command = Command {
-            ready: reader.u32(),
-            channel: reader.u32(),
             size: reader.u32(),
             data: reader.u32(),
+            channel: reader.u32(),
+            ready: reader.u32(),
         };
 
         log::trace!(target: "ardaku", "DBG {command:?}");
