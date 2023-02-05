@@ -91,25 +91,25 @@ enum Portal {
     /// Developer command API (stdin/scanf)
     Prompt = 1,
     /// Set user information API (username, display name)
-    Account = 2,
+    Account,
     /// Get user information API (username, display name)
-    User = 3,
+    User,
     /// Set system information API (system nickname, hostname)
-    System = 4,
+    System,
     /// Get system information API (system nickname, hostname)
-    Host = 5,
+    Host,
     /// Set hardware features API (overclock, hardware time)
-    Hardware = 6,
+    Hardware,
     /// Get hardware features API (cpu / gpu specs)
-    Platform = 7,
+    Platform,
     /// Task spawning API
-    Spawn = 8,
+    Spawn,
     /// Blocking task spawning API
-    SpawnBlocking = 9,
+    SpawnBlocking,
     /// MPMC Channel API
-    Channel = 10,
+    Channel,
     /// Account API (create / delete users)
-    Admin = 11,
+    Admin,
     ///
     Max,
 }
@@ -132,16 +132,22 @@ fn prompt<S: System>(
     size: u32,
     data: u32,
 ) -> bool {
+    log::trace!(target: "ardaku", "prompt");
+
     let size: usize = size.try_into().unwrap();
     let data: usize = data.try_into().unwrap();
 
+    log::trace!(target: "ardaku", "prompt size: {size}, data: {data}");
+
     if size != 8 {
-        todo!("Host trap: command size");
+        todo!("Host trap: command size {size}");
     }
 
     let mut prompt_cmd = Reader::new(&bytes[data..][..size]);
-    let text_ref: usize = prompt_cmd.u32().try_into().unwrap();
     let capacity_ref: usize = prompt_cmd.u32().try_into().unwrap();
+    let text_ref: usize = prompt_cmd.u32().try_into().unwrap();
+
+    log::trace!(target: "ardaku", "prompt readline");
 
     system.read_line(ready, text_ref, capacity_ref);
 
@@ -159,19 +165,18 @@ fn log<S: System>(
     let data: usize = data.try_into().unwrap();
 
     if size != 16 {
-        todo!("Host trap: command size");
+        todo!("Host trap: command size {size}");
     }
 
     let mut log_cmd = Reader::new(&bytes[data..][..size]);
-    let target_size: usize = log_cmd.u32().try_into().unwrap();
+    let target_size: u8 = log_cmd.u16().try_into().unwrap_or(u8::MAX);
+    let log_level: u16 = log_cmd.u16();
     let target_data: usize = log_cmd.u32().try_into().unwrap();
     let message_size: usize = log_cmd.u32().try_into().unwrap();
     let message_data: usize = log_cmd.u32().try_into().unwrap();
-    let log_level = target_size >> 29;
-    let target_size = target_size & 0xFF;
 
     log::trace!(target: "ardaku", "Message (data, size) = ({target_data}, {target_size})");
-    let target = &bytes[target_data..][..target_size];
+    let target = &bytes[target_data..][..usize::from(target_size)];
     let target = if let Ok(target) = core::str::from_utf8(target) {
         target
     } else {
@@ -190,12 +195,16 @@ fn log<S: System>(
     };
 
     let level = match log_level {
-        0 => Level::Trace,
-        1 => Level::Debug,
-        2 => Level::Info,
-        3 => Level::Warn,
-        4 => Level::Error,
-        5 => todo!("Host trap: custom trap"),
+        0 => {
+            log::info!(target: "ardaku", "Panic triggered");
+            system.log(message, Level::Error, target);
+            todo!("Host trap: custom fatal");
+        }
+        1 => Level::Error,
+        2 => Level::Warn,
+        3 => Level::Info,
+        4 => Level::Debug,
+        5 => Level::Trace,
         _ => todo!("Host trap: invalid log level"),
     };
 
@@ -230,7 +239,7 @@ impl<S: System> State<S> {
 
         let cap = connect.ready_capacity;
         let ptr = connect.ready_data;
-        log::trace!(target: "ardaku", "KONEKCYN: {cap} {ptr:x}");
+        log::trace!(target: "ardaku", "Connect: cap {cap}, ptr {ptr:x}");
 
         self.ready_list = (connect.ready_capacity, connect.ready_data);
 
@@ -343,7 +352,7 @@ where
     log::trace!(target: "ardaku", "Syscall ({size} commands)");
 
     let mut offset: usize = data.try_into().unwrap();
-    let mut ready_immediately = 0;
+    let mut none_waiting = true;
     for _ in 0..size {
         let mut reader = Reader::new(&bytes[offset..]);
         let command = Command {
@@ -355,16 +364,16 @@ where
 
         log::trace!(target: "ardaku", "DBG {command:?}");
 
-        ready_immediately += u32::from(u8::from(state.execute(bytes, command)));
+        none_waiting &= state.execute(bytes, command);
         offset += 4 * core::mem::size_of::<u32>();
     }
 
     let ready_size = state.ready_list.0.try_into().unwrap();
     let ready_data = state.ready_list.1.try_into().unwrap();
 
-    log::trace!(target: "ardaku", "Ready ({ready_immediately})");
+    log::trace!(target: "ardaku", "Ready ({none_waiting})");
 
-    if ready_immediately == 0 {
+    if !none_waiting {
         state
             .system
             .sleep(bytes, ready_size, ready_data)
@@ -377,7 +386,7 @@ where
             writer.u32(u32::MAX);
         }
 
-        ready_immediately
+        0
     }
 }
 

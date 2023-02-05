@@ -17,17 +17,16 @@ async fn main() {
     // Uncomment if you want panic info for debugging
     /*
     fn panic(panic_info: &std::panic::PanicInfo) {
-        log::error!("Panic: {panic_info}");
-        log::logger().flush();
-        unreachable!();
+        log::fatal("panic", panic_info.to_string());
     }
 
-    std::panic::set_hook(Box::new(panic)); */
+    std::panic::set_hook(Box::new(panic));
+    */
 
     log::set_max_level(log::LevelFilter::Debug);
     log::info!("Wait a minute...");
     log::info!("What is your name?");
-
+    
     let mut name = String::new();
     prompt::read_line(&mut name).await;
     log::info!("Hello, {name}!");
