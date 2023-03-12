@@ -411,7 +411,7 @@ where
     );
     let async_request = Func::wrap(&mut store, ar);
     let debug = Func::wrap(&mut store, dbg);
-    let mut linker = <Linker<State<S>>>::new();
+    let mut linker = <Linker<State<S>>>::new(&engine);
     linker
         .define("daku", "ar", async_request)
         .map_err(|_| Error::LinkerFailed)?
