@@ -1,0 +1,11 @@
+[package]
+name = "cargo-ardaku"
+version = "0.0.0"
+edition = "2021"
+description = "Cargo plugin for Ardaku"
+license = "BSL-1.0"
+documentation = "https://docs.rs/cargo-ardaku"
+homepage = "https://ardaku.org"
+repository = "https://github.com/ardaku/ardaku"
+
+[dependencies]

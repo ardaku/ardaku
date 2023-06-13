@@ -1,3 +1,7 @@
+[workspace]
+default-members = ["."]
+members = [".", "cargo-ardaku"]
+
 [package]
 name = "ardaku"
 version = "0.1.0"
