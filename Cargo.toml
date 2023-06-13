@@ -1,6 +1,6 @@
 [workspace]
 default-members = ["."]
-members = [".", "cargo-ardaku"]
+members = [".", "cargo-ardaku", "swarf"]
 
 [package]
 name = "ardaku"

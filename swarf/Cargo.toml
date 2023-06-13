@@ -1,0 +1,11 @@
+[package]
+name = "swarf"
+version = "0.0.0"
+edition = "2021"
+description = "Abstraction over WebAssembly engines"
+license = "BSL-1.0"
+documentation = "https://docs.rs/swarf"
+homepage = "https://ardaku.org"
+repository = "https://github.com/ardaku/ardaku"
+
+[dependencies]
