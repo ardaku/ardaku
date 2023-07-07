@@ -14,14 +14,5 @@ version = "0.4"
 version = "0.5"
 features = ["log", "prompt"]
 
-[dependencies.lol_alloc]
-version = "0.3"
-
-[patch.crates-io]
-daku = { path = "../../daku/" }
-
-[profile.release]
-panic = "abort"
-opt-level = 's'
-lto = true
-debug = true
+[dependencies.rlsf]
+version = "0.2"

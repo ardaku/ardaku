@@ -169,11 +169,10 @@ fn log<S: System>(
     }
 
     let mut log_cmd = Reader::new(&bytes[data..][..size]);
-    let target_size: u8 = log_cmd.u16().try_into().unwrap_or(u8::MAX);
-    let log_level: u16 = log_cmd.u16();
-    let target_data: usize = log_cmd.u32().try_into().unwrap();
     let message_size: usize = log_cmd.u32().try_into().unwrap();
     let message_data: usize = log_cmd.u32().try_into().unwrap();
+    let target_size: usize = log_cmd.u32().try_into().unwrap();
+    let target_data: usize = log_cmd.u32().try_into().unwrap();
 
     log::trace!(target: "ardaku", "Message (data, size) = ({target_data}, {target_size})");
     let target = &bytes[target_data..][..usize::from(target_size)];
@@ -187,25 +186,28 @@ fn log<S: System>(
 
     log::trace!(target: "ardaku", "Message (data, size) = ({message_data}, {message_size})");
 
-    let message = &bytes[message_data..][..message_size];
+    let message = &bytes[message_data + 1..][..message_size];
     let message = if let Ok(message) = core::str::from_utf8(message) {
         message
     } else {
         todo!("Host trap: invalid utf8 (message)");
     };
 
-    let level = match log_level {
-        0 => {
+    let level = match bytes[message_data] {
+        b'F' => {
             log::info!(target: "ardaku", "Panic triggered");
             system.log(message, Level::Error, target);
             todo!("Host trap: custom fatal");
         }
-        1 => Level::Error,
-        2 => Level::Warn,
-        3 => Level::Info,
-        4 => Level::Debug,
-        5 => Level::Trace,
-        _ => todo!("Host trap: invalid log level"),
+        b'E' => Level::Error,
+        b'W' => Level::Warn,
+        b'I' => Level::Info,
+        b'D' => Level::Debug,
+        b'T' => Level::Trace,
+        l => {
+            let ch = char::from(l);
+            todo!("Host trap: invalid log level: {ch}");
+        },
     };
 
     system.log(message, level, target);

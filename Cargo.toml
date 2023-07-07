@@ -1,6 +1,6 @@
 [workspace]
 default-members = ["."]
-members = [".", "cargo-ardaku", "swarf"]
+members = [".", "cargo-ardaku", "hello", "swarf"]
 
 [package]
 name = "ardaku"
@@ -21,3 +21,12 @@ default-features = false
 
 [dev-dependencies]
 env_logger = "0.10"
+
+[profile.release]
+panic = "abort"
+opt-level = 's'
+lto = true
+debug = true
+
+[patch.crates-io]
+daku = { path = "../daku/" }

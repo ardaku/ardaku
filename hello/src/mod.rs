@@ -1,12 +1,7 @@
 use daku::api::{log, prompt};
 
-type LolAllocator =
-    lol_alloc::AssumeSingleThreaded<lol_alloc::FreeListAllocator>;
-
 #[global_allocator]
-static GA: LolAllocator = unsafe {
-    lol_alloc::AssumeSingleThreaded::new(lol_alloc::FreeListAllocator::new())
-};
+static A: rlsf::SmallGlobalTlsf = rlsf::SmallGlobalTlsf::new();
 
 #[no_mangle]
 unsafe extern "C" fn run() {
